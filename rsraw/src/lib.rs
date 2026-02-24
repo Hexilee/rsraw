@@ -6,7 +6,7 @@ mod processed;
 mod raw;
 mod thumb;
 
-pub use gps::GpsInfo;
+pub use gps::{GpsInfo, GpsParseError};
 pub use lens::{FocusType, LensInfo};
 pub use mounts::Mounts;
 pub use processed::{ImageFormat, ProcessedImage};

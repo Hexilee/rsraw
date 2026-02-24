@@ -268,7 +268,10 @@ mod tests {
                     aperture: 3.5,
                     focal_len: 105.,
                     datetime: Local.with_ymd_and_hms(2024, 11, 4, 20, 11, 38).single(),
-                    gps: Default::default(),
+                    // Z8 NEF has GPS EXIF tags present but coordinates are
+                    // zeroed (no fix). LibRaw still sets gpsparsed = 1, but
+                    // since all coords are zero the result equals default.
+                    gps: GpsInfo::default(),
                     artist: "HEXILEE".into(),
                     desc: "".into(),
                     make: "Nikon".into(),
