@@ -60,6 +60,19 @@ impl RawImage {
         Ok(thumbs.into_inner())
     }
 
+    /// Enables or disables the ultra-fast pixel binning output.
+    /// Must be called before `unpack()`.
+    pub fn set_half_size(&mut self, enable: bool) {
+        // Because we are touching a C-struct, Rust requires an unsafe block.
+        // We are telling the compiler "I know what I'm doing with this pointer."
+        unsafe {
+            // Find what the underlying C pointer is named in their struct.
+            // It might be `self.inner`, `self.libraw_data`, or `self.ptr`.
+            // We access the `params` struct and flip the `half_size` integer.
+            (*self.raw_data).params.half_size = if enable { 1 } else { 0 };
+        }
+    }
+
     pub fn width(&self) -> u32 {
         self.as_ref().sizes.width as _
     }
