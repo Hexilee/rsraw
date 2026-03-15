@@ -122,6 +122,7 @@ fn bindings(out_dir: impl AsRef<Path>) {
         .ctypes_prefix("libc")
         .generate_comments(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .layout_tests(false)
         // API improvements
         .derive_eq(true)
         .no_partialeq("__darwin_pthread_handler_rec")
