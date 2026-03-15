@@ -21,35 +21,35 @@ jobs:
           - {
               target: x86_64-pc-windows-gnu,
               os: windows-latest,
-              toolchain: 'nightly-2025-01-01',
+              toolchain: 'nightly-2025-11-01',
               cross: false,
               command: 'test'
             }
           - {
               target: x86_64-unknown-linux-gnu,
               os: ubuntu-latest,
-              toolchain: 'nightly-2025-01-01',
+              toolchain: 'nightly-2025-11-01',
               cross: false,
               command: 'test'
             }
           - {
               target: aarch64-apple-darwin,
               os: macos-14,
-              toolchain: 'nightly-2025-01-01',
+              toolchain: 'nightly-2025-11-01',
               cross: false,
               command: 'test'
             }
           # - {
           #     target: aarch64-apple-ios,
           #     os: macos-latest,
-          #     toolchain: 'nightly-2025-01-01',
+          #     toolchain: 'nightly-2025-11-01',
           #     cross: false,
           #     command: 'test'
           #   }
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
-              toolchain: 'nightly-2025-01-01',
+              toolchain: 'nightly-2025-11-01',
               cross: true,
               command: 'test'
             }
@@ -96,11 +96,11 @@ jobs:
       matrix:
         include:
           - target: x86_64-pc-windows-gnu
-            toolchain: nightly-2025-01-01
+            toolchain: nightly-2025-11-01
             builder: cross
             experimental: false
           - target: aarch64-apple-darwin
-            toolchain: nightly-2025-01-01
+            toolchain: nightly-2025-11-01
             builder: zigbuild
             experimental: true
 
