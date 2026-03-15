@@ -105,7 +105,6 @@ fn build(out_dir: impl AsRef<Path>) {
 
     // thread safety
     libraw.flag("-pthread");
-    libraw.static_flag(true);
     libraw.compile("raw");
 
     println!(
@@ -117,9 +116,6 @@ fn build(out_dir: impl AsRef<Path>) {
 
 fn bindings(out_dir: impl AsRef<Path>) {
     let path = out_dir.as_ref().join("bindings.rs");
-    if path.exists() {
-        return;
-    }
     let bindings = bindgen::Builder::default()
         .header("LibRaw/libraw/libraw.h")
         .use_core()
@@ -130,6 +126,7 @@ fn bindings(out_dir: impl AsRef<Path>) {
         .derive_eq(true)
         .no_partialeq("__darwin_pthread_handler_rec")
         .no_partialeq("_IO_FILE") // This is the unnamed struct with _close, _read, etc.
+        .no_partialeq("_IO_cookie_io_functions_t")
         .no_partialeq("sigvec")
         .no_partialeq("libraw_callbacks_t")
         .no_partialeq("__sFILE")

@@ -369,7 +369,7 @@ mod tests {
             let path = assets.join(file);
             let data = std::fs::read(path).unwrap();
             let raw_image = RawImage::open(&data).expect("opened");
-            assert_eq!(raw_image.raw_data.is_null(), false);
+            assert!(!raw_image.raw_data.is_null());
             let full_info = raw_image.full_info();
             assert_eq!(full_info, expected);
         }
