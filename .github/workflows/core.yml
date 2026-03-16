@@ -49,7 +49,7 @@ jobs:
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
-              toolchain: 'nightly-2025-11-01',
+              toolchain: 'nightly-2025-01-01',
               cross: true,
               command: 'test'
             }
@@ -89,7 +89,7 @@ jobs:
 
   cross-build-linux:
     name: Linux cross build (${{ matrix.target }})
-    # Use an older nightly here for glibc compatibility with cross containers.
+    # Use per-target nightly: older for cross containers (glibc), newer for zigbuild tooling.
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
     strategy:
@@ -101,7 +101,7 @@ jobs:
             builder: cross
             experimental: false
           - target: aarch64-apple-darwin
-            toolchain: nightly-2025-01-01
+            toolchain: nightly-2025-11-01
             builder: zigbuild
             experimental: true
 
@@ -128,7 +128,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         if: matrix.builder == 'zigbuild'
-        run: cargo install cargo-zigbuild --locked
+        run: cargo install cargo-zigbuild --version 0.21.8 --locked
 
       - name: Cross build by cross
         if: matrix.builder == 'cross'
