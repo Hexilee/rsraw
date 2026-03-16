@@ -14,7 +14,6 @@ env:
 jobs:
   test:
     runs-on: ${{ matrix.platform.os }}
-    continue-on-error: ${{ matrix.platform.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -24,42 +23,37 @@ jobs:
               os: windows-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test',
-              experimental: false
+              command: 'test'
             }
           - {
               target: x86_64-unknown-linux-gnu,
               os: ubuntu-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test',
-              experimental: false
+              command: 'test'
             }
           - {
               target: aarch64-apple-darwin,
               os: macos-14,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test',
-              experimental: false
+              command: 'test'
             }
-          # iOS lane is compile-check only and marked experimental.
+          # iOS lane is compile-check only (no runtime tests).
           - {
               target: aarch64-apple-ios,
               os: macos-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'check',
-              experimental: true
+              command: 'check'
             }
-          # Android lane is experimental: cross/container environment remains flaky.
+          # Android lane uses cross + check to validate cross-compilation in CI.
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
               toolchain: 'nightly-2024-12-01',
               cross: true,
-              command: 'check',
-              experimental: true
+              command: 'check'
             }
 
     steps:
@@ -86,6 +80,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y webkit2gtk-4.1 libxdo-dev libayatana-appindicator3-dev
       - uses: Swatinem/rust-cache@v2
+        if: ${{ !matrix.platform.cross }}
       - name: test
         if: ${{ !matrix.platform.cross }}
         run: cargo ${{ matrix.platform.command }} --target ${{ matrix.platform.target }} --all --verbose
@@ -99,7 +94,6 @@ jobs:
     name: Linux cross build (${{ matrix.target }})
     # Use per-target nightly: older for cross containers (glibc), newer for zigbuild tooling.
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -107,11 +101,9 @@ jobs:
           - target: x86_64-pc-windows-gnu
             toolchain: nightly-2025-01-01
             builder: cross
-            experimental: false
           - target: aarch64-apple-darwin
             toolchain: nightly-2025-11-01
             builder: zigbuild
-            experimental: true
 
     steps:
       - uses: actions/checkout@v4
