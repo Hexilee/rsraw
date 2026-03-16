@@ -107,7 +107,7 @@ impl RawImage {
 
     pub fn datetime(&self) -> Option<DateTime<Local>> {
         let ts = self.as_ref().other.timestamp;
-        Local.timestamp_opt(ts, 0).single()
+        Local.timestamp_opt(i64::from(ts), 0).single()
     }
 
     pub fn gps(&self) -> GpsInfo {
@@ -369,7 +369,7 @@ mod tests {
             let path = assets.join(file);
             let data = std::fs::read(path).unwrap();
             let raw_image = RawImage::open(&data).expect("opened");
-            assert_eq!(raw_image.raw_data.is_null(), false);
+            assert!(!raw_image.raw_data.is_null());
             let full_info = raw_image.full_info();
             assert_eq!(full_info, expected);
         }

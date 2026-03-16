@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::{env, fs, path::Path};
 
 fn main() {
     let dir = env::var_os("OUT_DIR").unwrap();
@@ -105,7 +105,6 @@ fn build(out_dir: impl AsRef<Path>) {
 
     // thread safety
     libraw.flag("-pthread");
-    libraw.static_flag(true);
     libraw.compile("raw");
 
     println!(
@@ -117,19 +116,28 @@ fn build(out_dir: impl AsRef<Path>) {
 
 fn bindings(out_dir: impl AsRef<Path>) {
     let path = out_dir.as_ref().join("bindings.rs");
-    if path.exists() {
+    let host = env::var("HOST").expect("HOST is not set");
+    let target = env::var("TARGET").expect("TARGET is not set");
+
+    // Cross builds (e.g. Android in CI) may not have a usable target sysroot
+    // for clang/bindgen. Reuse the checked-in bindings in that case.
+    if host != target {
+        fs::copy("src/bindings.rs", &path).expect("Couldn't copy pregenerated bindings");
         return;
     }
+
     let bindings = bindgen::Builder::default()
         .header("LibRaw/libraw/libraw.h")
         .use_core()
         .ctypes_prefix("libc")
         .generate_comments(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .layout_tests(false)
         // API improvements
         .derive_eq(true)
         .no_partialeq("__darwin_pthread_handler_rec")
         .no_partialeq("_IO_FILE") // This is the unnamed struct with _close, _read, etc.
+        .no_partialeq("_IO_cookie_io_functions_t")
         .no_partialeq("sigvec")
         .no_partialeq("libraw_callbacks_t")
         .no_partialeq("__sFILE")
