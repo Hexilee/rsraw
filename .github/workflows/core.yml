@@ -89,6 +89,7 @@ jobs:
 
   cross-build-linux:
     name: Linux cross build (${{ matrix.target }})
+    # Use an older nightly here for glibc compatibility with cross containers.
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
     strategy:
@@ -96,11 +97,11 @@ jobs:
       matrix:
         include:
           - target: x86_64-pc-windows-gnu
-            toolchain: nightly-2025-11-01
+            toolchain: nightly-2025-01-01
             builder: cross
             experimental: false
           - target: aarch64-apple-darwin
-            toolchain: nightly-2025-11-01
+            toolchain: nightly-2025-01-01
             builder: zigbuild
             experimental: true
 
