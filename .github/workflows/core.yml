@@ -47,12 +47,12 @@ jobs:
               cross: false,
               command: 'check'
             }
-          # Android cross container can fail on glibc for host build-scripts; use host check.
+          # Android uses cross container; pin older nightly for container glibc compatibility.
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
-              toolchain: 'nightly-2025-11-01',
-              cross: false,
+              toolchain: 'nightly-2024-12-01',
+              cross: true,
               command: 'check'
             }
 
