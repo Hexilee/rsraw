@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::{env, fs, path::Path};
 
 fn main() {
     let dir = env::var_os("OUT_DIR").unwrap();
@@ -116,6 +116,16 @@ fn build(out_dir: impl AsRef<Path>) {
 
 fn bindings(out_dir: impl AsRef<Path>) {
     let path = out_dir.as_ref().join("bindings.rs");
+    let host = env::var("HOST").expect("HOST is not set");
+    let target = env::var("TARGET").expect("TARGET is not set");
+
+    // Cross builds (e.g. Android in CI) may not have a usable target sysroot
+    // for clang/bindgen. Reuse the checked-in bindings in that case.
+    if host != target {
+        fs::copy("src/bindings.rs", &path).expect("Couldn't copy pregenerated bindings");
+        return;
+    }
+
     let bindings = bindgen::Builder::default()
         .header("LibRaw/libraw/libraw.h")
         .use_core()
