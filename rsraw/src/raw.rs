@@ -107,7 +107,7 @@ impl RawImage {
 
     pub fn datetime(&self) -> Option<DateTime<Local>> {
         let ts = self.as_ref().other.timestamp;
-        Local.timestamp_opt(ts, 0).single()
+        Local.timestamp_opt(i64::from(ts), 0).single()
     }
 
     pub fn gps(&self) -> GpsInfo {
