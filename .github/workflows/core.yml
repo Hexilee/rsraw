@@ -39,13 +39,13 @@ jobs:
               cross: false,
               command: 'test'
             }
-          # - {
-          #     target: aarch64-apple-ios,
-          #     os: macos-latest,
-          #     toolchain: 'nightly-2025-11-01',
-          #     cross: false,
-          #     command: 'test'
-          #   }
+          - {
+              target: aarch64-apple-ios,
+              os: macos-latest,
+              toolchain: 'nightly-2025-11-01',
+              cross: false,
+              command: 'test'
+            }
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
