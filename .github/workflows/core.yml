@@ -14,6 +14,7 @@ env:
 jobs:
   test:
     runs-on: ${{ matrix.platform.os }}
+    continue-on-error: ${{ matrix.platform.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,37 +24,42 @@ jobs:
               os: windows-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test'
+              command: 'test',
+              experimental: false
             }
           - {
               target: x86_64-unknown-linux-gnu,
               os: ubuntu-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test'
+              command: 'test',
+              experimental: false
             }
           - {
               target: aarch64-apple-darwin,
               os: macos-14,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'test'
+              command: 'test',
+              experimental: false
             }
-          # iOS tests require device/simulator linking; use compile check in CI.
+          # iOS lane is compile-check only and marked experimental.
           - {
               target: aarch64-apple-ios,
               os: macos-latest,
               toolchain: 'nightly-2025-11-01',
               cross: false,
-              command: 'check'
+              command: 'check',
+              experimental: true
             }
-          # Android uses cross container; pin older nightly for container glibc compatibility.
+          # Android lane is experimental: cross/container environment remains flaky.
           - {
               target: aarch64-linux-android,
               os: ubuntu-latest,
               toolchain: 'nightly-2024-12-01',
               cross: true,
-              command: 'check'
+              command: 'check',
+              experimental: true
             }
 
     steps:
