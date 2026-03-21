@@ -1,6 +1,6 @@
 [package]
 name = "rsraw-sys"
-version = "0.1.0"
+version = "0.1.1"
 build = "build.rs"
 include = ["src/lib.rs", "src/bindings.rs", "LICENSE-*", "README.md", "LibRaw/libraw/*", "LibRaw/src/*", "LibRaw/internal/*", "LibRaw/COPYRIGHT", "LibRaw/LICENSE.*", "build.rs"]
 edition = "2021"
