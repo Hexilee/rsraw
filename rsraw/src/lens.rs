@@ -57,7 +57,7 @@ impl<'a> From<&'a sys::libraw_lensinfo_t> for LensInfo {
 
         Self {
             min_focal: data.MinFocal,
-            max_focal: data.MinFocal,
+            max_focal: data.MaxFocal,
             max_aperture_at_min_focal: data.MaxAp4MinFocal,
             max_aperture_at_max_focal: data.MaxAp4MaxFocal,
             lens_make: unsafe {
