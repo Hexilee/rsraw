@@ -1,6 +1,6 @@
 [package]
 name = "rsraw-sys"
-version = "0.1.1"
+version = "0.1.2"
 build = "build.rs"
 include = ["src/lib.rs", "src/bindings.rs", "LICENSE-*", "README.md", "LibRaw/libraw/*", "LibRaw/src/*", "LibRaw/internal/*", "LibRaw/COPYRIGHT", "LibRaw/LICENSE.*", "build.rs"]
 edition = "2021"
@@ -25,4 +25,4 @@ name = "rsraw_sys"
 
 [build-dependencies]
 cc = { version = "1.2", features = ["parallel"] }
-bindgen = { version = "0.71", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.73.2", default-features = false, features = ["runtime"] }

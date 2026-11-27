@@ -11,6 +11,7 @@ pub enum ThumbFormat {
     Layer,
     Rollei,
     H265,
+    JpegXl,
 }
 
 #[derive(Debug, Default)]
@@ -51,6 +52,7 @@ impl From<sys::LibRaw_thumbnail_formats> for ThumbFormat {
             sys::LibRaw_thumbnail_formats_LIBRAW_THUMBNAIL_LAYER => Self::Layer,
             sys::LibRaw_thumbnail_formats_LIBRAW_THUMBNAIL_ROLLEI => Self::Rollei,
             sys::LibRaw_thumbnail_formats_LIBRAW_THUMBNAIL_H265 => Self::H265,
+            sys::LibRaw_thumbnail_formats_LIBRAW_THUMBNAIL_JPEGXL => Self::JpegXl,
             _ => Self::Unknown,
         }
     }
@@ -65,5 +67,18 @@ impl fmt::Debug for ThumbnailImage {
             .field("colors", &self.colors)
             .field("data", &format_args!("{} bytes", self.data.len()))
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jpegxl_thumbnail_format_is_mapped() {
+        assert_eq!(
+            ThumbFormat::from(sys::LibRaw_thumbnail_formats_LIBRAW_THUMBNAIL_JPEGXL),
+            ThumbFormat::JpegXl
+        );
     }
 }

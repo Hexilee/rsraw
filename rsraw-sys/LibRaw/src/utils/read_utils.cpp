@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -17,6 +17,14 @@
  */
 
 #include "../../internal/dcraw_defs.h"
+#include <math.h>
+
+#if defined(_MSC_VER) && (_MSC_VER <= 1600) 
+#include <float.h>
+#define isnan(a) _isnan(a)
+#define isinf(x) (!_finite(x) && !_isnan(x))
+#endif
+
 
 ushort LibRaw::sget2Rev(uchar *s) // specific to some Canon Makernotes fields,
                                   // where they have endian in reverse
@@ -79,6 +87,8 @@ float libraw_int_to_float(int i)
     float f;
   } u;
   u.i = i;
+  if (isnan(u.f) || isinf(u.f))
+	  return 0.f;
   return u.f;
 }
 
@@ -116,6 +126,8 @@ double LibRaw::getreal(int type)
     rev = 7 * ((order == 0x4949) == (ntohs(0x1234) == 0x1234));
     for (i = 0; i < 8; i++)
       u.c[i ^ rev] = fgetc(ifp);
+    if (isnan(u.d) || isinf(u.d))
+      return 0.f;
     return u.d;
   default:
     return fgetc(ifp);
@@ -159,10 +171,10 @@ double libraw_sgetreal_static(short _order, int type, uchar *s)
   case LIBRAW_EXIFTAG_TYPE_DOUBLE:
     rev = 7 * ((_order == 0x4949) == (ntohs(0x1234) == 0x1234));
     for (i = 0; i < 8; i++)
-      u.c[i ^ rev] = *(s+1);
+      u.c[i ^ rev] = *(s+i);
     return u.d;
   default:
-    return *(s+1);
+    return *s;
   }
 }
 
