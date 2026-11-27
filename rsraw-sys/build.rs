@@ -26,6 +26,12 @@ fn build(out_dir: impl AsRef<Path>) {
     libraw.file("LibRaw/src/decoders/fuji_compressed.cpp");
     libraw.file("LibRaw/src/decoders/generic.cpp");
     libraw.file("LibRaw/src/decoders/kodak_decoders.cpp");
+    libraw.file("LibRaw/src/decoders/nikonhe.cpp");
+    libraw.file("LibRaw/src/decoders/olympus14.cpp");
+    libraw.file("LibRaw/src/decoders/pana8.cpp");
+    libraw.file("LibRaw/src/decoders/sony_arw6.cpp");
+    libraw.file("LibRaw/src/decoders/sonycc.cpp");
+    libraw.file("LibRaw/src/decompressors/losslessjpeg.cpp");
     libraw.file("LibRaw/src/decoders/load_mfbacks.cpp");
     libraw.file("LibRaw/src/decoders/smal.cpp");
     libraw.file("LibRaw/src/decoders/unpack.cpp");

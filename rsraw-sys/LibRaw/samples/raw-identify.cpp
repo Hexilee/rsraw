@@ -1,6 +1,6 @@
 /* -*- C++ -*-
  * File: identify.cpp
- * Copyright 2008-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2008-2026 LibRaw LLC (info@libraw.org)
  * Created: Sat Mar  8, 2008
  *
  * LibRaw C++ demo: emulates dcraw -i [-v]
@@ -566,7 +566,7 @@ void print_verbose(FILE *outfile, LibRaw &MyCoolRawProcessor, std::string &fn)
   {
     fprintf(outfile, "\nHighlight linearity limits:");
     for (int c = 0; c < 4; c++)
-      fprintf(outfile, " %ld", C.linear_max[c]);
+      fprintf(outfile, " %u", C.linear_max[c]);
   }
 
   if (P1.colors > 1)

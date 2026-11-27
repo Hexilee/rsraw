@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -21,7 +21,15 @@
 void LibRaw::vc5_dng_load_raw_placeholder()
 {
     // placeholder only, real decoding implemented in GPR SDK
-    throw LIBRAW_EXCEPTION_DECODE_RAW;
+	if (!dng_version)
+		throw LIBRAW_EXCEPTION_IO_EOF; // Never reached: it is just to fool global function optimizer
+    else
+      throw LIBRAW_EXCEPTION_UNSUPPORTED_FORMAT;
+}
+void LibRaw::jxl_dng_load_raw_placeholder()
+{
+  // placeholder only, real decoding implemented in DNG SDK
+  throw LIBRAW_EXCEPTION_UNSUPPORTED_FORMAT;
 }
 
 void LibRaw::adobe_copy_pixel(unsigned row, unsigned col, ushort **rp)
@@ -65,7 +73,7 @@ void LibRaw::lossless_dng_load_raw()
     if (!ljpeg_start(&jh, 0))
       break;
     jwide = jh.wide;
-    if (filters)
+    if (filters || colors == 1)
       jwide *= jh.clrs;
 
     if(filters && (tiff_samples == 2)) // Fuji Super CCD
@@ -75,6 +83,8 @@ void LibRaw::lossless_dng_load_raw()
       switch (jh.algo)
       {
       case 0xc1:
+		if (tiff_samples > 1)
+			throw LIBRAW_EXCEPTION_IO_CORRUPT;
         jh.vpred[0] = 16384;
         getbits(-1);
         for (jrow = 0; jrow + 7 < (unsigned)jh.high; jrow += 8)
@@ -190,6 +200,12 @@ void LibRaw::lossy_dng_load_raw()
   ushort cur[4][256];
   double coeff[9], tot;
 
+  // Initialize the whole curve table with the default gamma curve first:
+  // an OpcodeList2 tag (meta_offset) carrying zero opcodes, or none of type
+  // PolynomialMap(8), must not leave cur[][] uninitialized.
+  gamma_curve(1 / 2.4, 12.92, 1, 255);
+  FORC4 memcpy(cur[c], curve, sizeof cur[0]);
+
   if (meta_offset)
   {
     fseek(ifp, meta_offset, SEEK_SET);
@@ -221,11 +237,6 @@ void LibRaw::lossy_dng_load_raw()
       }
     }
     order = sorder;
-  }
-  else
-  {
-    gamma_curve(1 / 2.4, 12.92, 1, 255);
-    FORC4 memcpy(cur[c], curve, sizeof cur[0]);
   }
 
   struct jpeg_error_mgr pub;

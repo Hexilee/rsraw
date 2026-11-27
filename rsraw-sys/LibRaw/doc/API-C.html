@@ -39,10 +39,16 @@
       <dd> Closes libraw_data_t handler and deallocates all memory. </dd>
     </dl>
     <p><a name="return"></a></p>
-    <h2>Returned values</h2>
-    <p>Functions of C API return EINVAL (see errno.h) if the null pointer was
-      passed to them as the first argument. In all other cases, the <a href="API-CXX.html#return">C++
-        API return code</a> is returned.</p>
+        <h2>Returned values</h2>
+    <p>
+      If a null handle is passed to the C-API function, it returns
+      <ul>
+        <li>EINVAL (see errno.h) for integer-returing functions</li>
+        <li>-999.0f for float-returning functions</li>
+      </ul>
+        If a valid handle is passed, either the requested value (for a getter function) or a 
+        return code is returned in accordance with the <a href="API-CXX.html#return">C++ API return code</a> convention.
+    </p>
     <p><a name="dataload"></a></p>
     <h2>Data Loading from a File/Buffer</h2>
     <dl>
@@ -95,6 +101,8 @@
       <li>void libraw_set_bright(libraw_data_t *lr,float value);</li>
       <li>void libraw_set_highlight(libraw_data_t *lr,int value);</li>
       <li>void libraw_set_fbdd_noiserd(libraw_data_t *lr,int value);</li>
+      <li>int libraw_adjust_to_raw_inset_crop(libraw_data_t *lr, unsigned mask,
+        float maxcrop);</li>
     </ul>
     <p><a name="utility"></a></p>
     <h2>Auxiliary Functions</h2>
@@ -127,6 +135,8 @@
       <dd>See <a href="API-CXX.html#recycle">LibRaw::recycle()</a></dd>
       <dt>const char *libraw_strerror(int errorcode);</dt>
       <dd>See <a href="API-CXX.html#libraw_strerror">LibRaw::strerror</a></dd>
+      <dt>libraw_adjust_to_raw_inset_crop(libraw_data_t *lr, unsigned mask, float maxcrop);</dt>
+      <dd>See <a href="API-CXX.html#adjust_to_raw_inset_crop">LibRaw::adjust_to_raw_inset_crop()</a></dd>
       <dt>const char *libraw_strprogress(enum LibRaw_progress);</dt>
       <dd>See <a href="API-CXX.html#strprogress">LibRaw::strprogress</a></dd>
       <dt>void libraw_set_dataerror_handler(libraw_data_t*,data_callback func,

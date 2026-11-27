@@ -26,6 +26,8 @@ pub enum Error {
     BadCrop,
     TooBig,
     MempoolOverflow,
+    /// The caller was built against a different LibRaw ABI than the linked library.
+    VersionMismatch,
     Unknown(i32),
 }
 
@@ -53,6 +55,7 @@ impl From<sys::LibRaw_errors> for Error {
             sys::LibRaw_errors_LIBRAW_BAD_CROP => Error::BadCrop,
             sys::LibRaw_errors_LIBRAW_TOO_BIG => Error::TooBig,
             sys::LibRaw_errors_LIBRAW_MEMPOOL_OVERFLOW => Error::MempoolOverflow,
+            sys::LibRaw_errors_LIBRAW_VERSION_MISMATCH => Error::VersionMismatch,
             _ => Error::Unknown(code),
         }
     }
@@ -86,6 +89,7 @@ impl Error {
             Error::BadCrop => "BadCrop",
             Error::TooBig => "TooBig",
             Error::MempoolOverflow => "MempoolOverflow",
+            Error::VersionMismatch => "VersionMismatch",
             Error::Unknown(_) => "Unknown",
         }
     }
@@ -98,3 +102,15 @@ impl Display for Error {
 }
 
 impl StdError for Error {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_mismatch_is_mapped() {
+        let err = Error::check(sys::LibRaw_errors_LIBRAW_VERSION_MISMATCH).unwrap_err();
+        assert!(matches!(err, Error::VersionMismatch));
+        assert_eq!(err.repr(), "VersionMismatch");
+    }
+}

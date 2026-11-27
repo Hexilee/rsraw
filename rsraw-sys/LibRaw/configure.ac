@@ -1,19 +1,17 @@
 # Initialization
 AC_INIT([LibRaw], m4_esyscmd([./version.sh]), [info@libraw.org], [], [http://www.libraw.org])
 AM_INIT_AUTOMAKE([foreign no-define])
+LT_INIT
 #AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
+PKG_PROG_PKG_CONFIG([0.21])
 
 # Tools to use
 AC_PROG_CXX
 AC_PROG_CC
-AC_PROG_LIBTOOL
 AC_ENABLE_SHARED
 AC_ENABLE_STATIC
-AC_LIBTOOL_WIN32_DLL
-AC_LIBTOOL_SETUP
-AC_SUBST(LIBTOOL_DEPS)
 
 # Config files to generate
 
@@ -61,28 +59,6 @@ if test x$jpeg = xtrue; then
                         ], AC_MSG_WARN([no jpeg headers found]))
                 ],
                 AC_MSG_WARN([libjpeg not found])
-        )
-fi
-
-# check for Jasper (JPEG2000) support
-AC_ARG_ENABLE([jasper],
-	[  --enable-jasper    Enable Jasper (JPEG2000) support for RedCine files],
-	[case "${enableval}" in
-		yes)	jasper=true ;;
-		no)	jasper=false ;;
-		*)	AC_MSG_ERROR([bad value ${enableval} for --enable-jasper]) ;;
-	esac],[jasper=true])
-
-if test x$jasper = xtrue; then
-        AC_CHECK_LIB([jasper], [jas_init],
-                [
-                        AC_CHECK_HEADERS([jasper/jasper.h], [
-                                CPPFLAGS="$CPPFLAGS -DUSE_JASPER"
-                                LIBS="$LIBS -ljasper"
-                                AC_SUBST([PACKAGE_LIBS_PRIVATE],"-ljasper $PACKAGE_LIBS_PRIVATE")
-                        ], AC_MSG_WARN([no jasper headers found]))
-                ],
-                AC_MSG_WARN([libjasper not found])
         )
 fi
 

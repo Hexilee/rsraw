@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
 
  LibRaw is free software; you can redistribute it and/or modify
@@ -108,11 +108,20 @@ void LibRaw::setCanonBodyFeatures(unsigned long long id)
     ilm.CameraFormat = LIBRAW_FORMAT_APSC;
     ilm.CameraMount = LIBRAW_MOUNT_Canon_EF_M;
   }
-  else if ((id == CanonID_EOS_R)  ||
-           (id == CanonID_EOS_RP) ||
-           (id == CanonID_EOS_R3) ||
-           (id == CanonID_EOS_R5) ||
-           (id == CanonID_EOS_R6))
+  else if (
+              (id == CanonID_EOS_R)
+           || (id == CanonID_EOS_RP)
+           || (id == CanonID_EOS_R1)
+           || (id == CanonID_EOS_R3)
+           || (id == CanonID_EOS_R5)
+           || (id == CanonID_EOS_R5_Mark_II)
+           || (id == CanonID_EOS_R5_C)
+           || (id == CanonID_EOS_R6)
+           || (id == CanonID_EOS_R6m2)
+           || (id == CanonID_EOS_R8)
+           || (id == CanonID_EOS_C50)
+           || (id == CanonID_EOS_R6_Mark_III)
+          )
   {
     ilm.CameraFormat = LIBRAW_FORMAT_FF;
     ilm.CameraMount = LIBRAW_MOUNT_Canon_RF;
@@ -120,13 +129,27 @@ void LibRaw::setCanonBodyFeatures(unsigned long long id)
     ilm.LensMount = LIBRAW_MOUNT_Canon_EF;
   }
 
-  else if ((id == CanonID_EOS_R7)  ||
-           (id == CanonID_EOS_R10))
+  else if (
+              (id == CanonID_EOS_R7)
+           || (id == CanonID_EOS_R10)
+           || (id == CanonID_EOS_R50)
+           || (id == CanonID_EOS_R50_V)
+           || (id == CanonID_EOS_R100)
+          )
   {
     ilm.CameraFormat = LIBRAW_FORMAT_APSC;
     ilm.CameraMount = LIBRAW_MOUNT_Canon_RF;
     ilm.LensFormat = LIBRAW_FORMAT_APSC;
     ilm.LensMount = LIBRAW_MOUNT_Canon_EF;
+  }
+
+  else if (id == CanonID_PS_V1)
+  {
+    ilm.CameraFormat = LIBRAW_FORMAT_Type_14;
+    ilm.CameraMount =  LIBRAW_MOUNT_FixedLens;
+    ilm.LensFormat =   LIBRAW_FORMAT_Type_14;
+    ilm.LensMount =    LIBRAW_MOUNT_FixedLens;
+    ilm.FocalType =    LIBRAW_FT_ZOOM_LENS_VARIABLE_APERTURE;
   }
 
   else if ((id == CanonID_EOS_D30) ||
@@ -138,7 +161,10 @@ void LibRaw::setCanonBodyFeatures(unsigned long long id)
   }
 }
 
-int CanonCameraInfo_checkFirmwareRecordLocation (uchar *offset) {
+static int CanonCameraInfo_checkFirmwareRecordLocation (uchar *data, size_t _offset, size_t size) 
+{
+	if (size < _offset + 5) return 0; // overrun
+	uchar *offset = data + _offset;
 // firmware record location allows
 // to determine the subversion of the CameraInfo table
 // and to adjust offsets accordingly
@@ -159,10 +185,12 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
   ushort iCanonLensID = 0, iCanonMaxFocal = 0, iCanonMinFocal = 0,
          iCanonLens = 0, iCanonCurFocal = 0, iCanonFocalType = 0,
          iMakernotesFlip = 0,
-         iHTP = 0, iALO = 0;
+         iHTP = 0, iALO = 0,
+         iAutoRotateMode = 0;
   short SubVersion_offset = 0;
   ushort SubVersion = 0, mgck = 0;
 
+// printf ("==>> CanonCameraInfo len: %d\n", maxlen);
   if (maxlen < 16)
     return; // too short
 
@@ -190,11 +218,11 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     iCanonLensID    =  0x0d;
     iCanonMinFocal  =  0x0e;
     iCanonMaxFocal  =  0x10;
-    if (!ilm.CurFocal)
+    if (!ilm.CurFocal && iCanonCurFocal < maxlen - 1)
       ilm.CurFocal = sget2(CameraInfo + iCanonCurFocal);
-    if (!ilm.MinFocal)
+    if (!ilm.MinFocal && iCanonMinFocal < maxlen - 1)
       ilm.MinFocal = sget2(CameraInfo + iCanonMinFocal);
-    if (!ilm.MaxFocal)
+    if (!ilm.MaxFocal && iCanonMaxFocal < maxlen - 1)
       ilm.MaxFocal = sget2(CameraInfo + iCanonMaxFocal);
     imCommon.CameraTemperature = 0.0f;
     break;
@@ -225,9 +253,9 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     break;
 
   case CanonID_EOS_1D_Mark_IV:
-    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x1e8))
+    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x1e8, maxlen))
       SubVersion = 1;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x1ed))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x1ed, maxlen))
       SubVersion = 2;
 // printf ("==>> CanonID_EOS_1D_Mark_IV, SubVersion: %d\n", SubVersion);
     iHTP            =  0x07;
@@ -245,13 +273,13 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     break;
 
   case CanonID_EOS_1D_X:
-    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x271))
+    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x271, maxlen))
       SubVersion = 1;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x279))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x279, maxlen))
       SubVersion = 2;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x280))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x280, maxlen))
       SubVersion = 3;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x285))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x285, maxlen))
       SubVersion = 4;
 // printf ("==>> CanonID_EOS_1D_X, SubVersion: %d\n", SubVersion);
 
@@ -292,15 +320,15 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     break;
 
   case CanonID_EOS_5D_Mark_III:
-    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x22c))
+    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x22c, maxlen))
       SubVersion = 1;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x22d))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x22d, maxlen))
       SubVersion = 2;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x23c))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x23c, maxlen))
       SubVersion = 3;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x242))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x242, maxlen))
       SubVersion = 4;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x247))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x247, maxlen))
       SubVersion = 5;
 // printf ("==>> CanonID_EOS_5D_Mark_III, SubVersion: %d\n", SubVersion);
 
@@ -330,18 +358,33 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     iCanonMaxFocal  = 0x157+SubVersion_offset;
     break;
 
+  case CanonID_EOS_5D_Mark_IV:
+    iMakernotesFlip =  0x96;
+    iAutoRotateMode = 0x5da;
+    //printf ("==>> 5DMkIV: MakernotesFlip: %d; AutoRotateMode: %d\n", CameraInfo[iMakernotesFlip], CameraInfo[iAutoRotateMode]);
+    break;
+
+  case CanonID_EOS_5DS:
+  case CanonID_EOS_5DS_R:
+    iMakernotesFlip =  0x96;
+    iAutoRotateMode = 0x580;
+    //printf ("==>> 5DS/5DS R: MakernotesFlip: %d; AutoRotateMode: %d\n", CameraInfo[iMakernotesFlip], CameraInfo[iAutoRotateMode]);
+    break;
+
   case CanonID_EOS_6D:
     iCanonCurFocal  =  0x23;
     iMakernotesFlip =  0x83;
     iCanonLensID    = 0x161;
     iCanonMinFocal  = 0x163;
     iCanonMaxFocal  = 0x165;
+    iAutoRotateMode = 0x3b2;
+    //printf ("==>> 6D: MakernotesFlip: %d; AutoRotateMode: %d\n", CameraInfo[iMakernotesFlip], CameraInfo[iAutoRotateMode]);
     break;
 
   case CanonID_EOS_7D:
-    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x1a8))
+    if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x1a8, maxlen))
       SubVersion = 1;
-    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo + 0x1ac))
+    else if (CanonCameraInfo_checkFirmwareRecordLocation(CameraInfo, 0x1ac, maxlen))
       SubVersion = 2;
 // printf ("==>> CanonID_EOS_7D, SubVersion: %d\n", SubVersion);
     iHTP            =  0x07;
@@ -469,9 +512,8 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     break;
   }
 
-  if (iMakernotesFlip && (CameraInfo[iMakernotesFlip] < 3)) {
+  if (iMakernotesFlip && iMakernotesFlip < maxlen && (CameraInfo[iMakernotesFlip] < 3)) {
     imCanon.MakernotesFlip = "065"[CameraInfo[iMakernotesFlip]] - '0';
-// printf ("==>> iMakernotesFlip: 0x%x, flip: %d\n", iMakernotesFlip, imCanon.MakernotesFlip);
   } else if (tagtypeIs(LIBRAW_EXIFTAG_TYPE_UNDEFINED) &&
      (mgck == 0xaaaa) && (dng_writer == nonDNG)) { // CameraOrientation
     int c, i;
@@ -480,12 +522,14 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
     while (i < int(maxlen - 5))
       if ((sget4(CameraInfo+i) == 257) && ((c = CameraInfo[i+8]) < 3)) {
         imCanon.MakernotesFlip = "065"[c] - '0';
-// printf ("==>> MakernotesFlip offset: 0x%x, flip: %d\n", i+8, imCanon.MakernotesFlip);
         break;
       } else i+=4;
   }
 
-  if (iHTP)
+  if (iAutoRotateMode && iAutoRotateMode < maxlen && CameraInfo[iAutoRotateMode] < 3)
+	  imCanon.AutoRotateMode = CameraInfo[iAutoRotateMode];
+
+  if (iHTP && iHTP < maxlen)
   {
     imCanon.HighlightTonePriority = CameraInfo[iHTP];
     if ((imCanon.HighlightTonePriority > 5) ||
@@ -495,7 +539,7 @@ void LibRaw::processCanonCameraInfo(unsigned long long id, uchar *CameraInfo,
       imCommon.ExposureCalibrationShift -= float(imCanon.HighlightTonePriority);
     }
   }
-  if (iALO)
+  if (iALO && iALO < maxlen)
   {
     imCanon.AutoLightingOptimizer = CameraInfo[iALO];
     if ((imCanon.AutoLightingOptimizer > 3) ||
@@ -639,30 +683,89 @@ void LibRaw::Canon_CameraSettings(unsigned len)
   }
 }
 
-void LibRaw::Canon_WBpresets(int skip1, int skip2)
-{
+void LibRaw::Canon_WBpresets(int skip1, int skip2) {
+/*
+Canon as of year 2024:
+Auto (Ambience priority)    3000 K .. 7000 K
+Auto: (White priority)      3000 K .. 7000 K
+Daylight                    5200 K
+Shade                       7000 K
+Cloudy, twilight, sunset    6000 K
+Tungsten light              3200 K
+White fluorescent light     4000 K
+Flash                       close to 6000 K, or automatically set from Speedlight
+Custom                      2000 K .. 10000 K
+Color temperature           2500 K .. 10000 K
+*/
+
   int c;
+  INT64 WBpreset_start_pos[6];
+
+	WBpreset_start_pos[0] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_Daylight][RGGB_2_RGBG(c)] = get2();
 
   if (skip1)
     fseek(ifp, skip1, SEEK_CUR);
+  WBpreset_start_pos[1] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_Shade][RGGB_2_RGBG(c)] = get2();
 
   if (skip1)
     fseek(ifp, skip1, SEEK_CUR);
+  WBpreset_start_pos[2] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_Cloudy][RGGB_2_RGBG(c)] = get2();
 
   if (skip1)
     fseek(ifp, skip1, SEEK_CUR);
+  WBpreset_start_pos[3] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_Tungsten][RGGB_2_RGBG(c)] = get2();
 
   if (skip1)
     fseek(ifp, skip1, SEEK_CUR);
+  WBpreset_start_pos[4] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_FL_W][RGGB_2_RGBG(c)] = get2();
 
   if (skip2)
     fseek(ifp, skip2, SEEK_CUR);
+  WBpreset_start_pos[5] = ftell(ifp);
   FORC4 imgdata.color.WB_Coeffs[LIBRAW_WBI_Flash][RGGB_2_RGBG(c)] = get2();
+
+/*
+	bool CCT_present = (skip1 == 2 ? true : false);
+	INT64 local_save_pos = ftell(ifp);
+
+	printf("\n>>> WBI_Daylight @ 0x%llx", WBpreset_start_pos[0]);
+	if (CCT_present) { fseek(ifp, WBpreset_start_pos[0]+8LL, SEEK_SET);
+		printf(", CCT: %d K, expected: 5200 K", get2()); }
+	printf("\n");
+
+	printf("\n>>> WBI_Shade @ 0x%llx", WBpreset_start_pos[1]);
+	if (CCT_present) { fseek(ifp, WBpreset_start_pos[1]+8LL, SEEK_SET);
+		printf(", CCT: %d K, expected: 7000 K", get2()); }
+	printf("\n");
+
+	printf("\n>>> WBI_Cloudy @ 0x%llx", WBpreset_start_pos[2]);
+	fseek(ifp, WBpreset_start_pos[2]+8LL, SEEK_SET);
+	if (CCT_present) { 
+		printf(", CCT: %d K, expected: 6000 K", get2()); }
+	printf("\n");
+
+	printf("\n>>> WBI_Tungsten @ 0x%llx", WBpreset_start_pos[3]);
+	fseek(ifp, WBpreset_start_pos[3]+8LL, SEEK_SET);
+	if (CCT_present) { 
+		printf(", CCT: %d K, expected: 3200 K", get2()); }
+	printf("\n");
+
+	printf("\n>>> WBI_FL_W @ 0x%llx", WBpreset_start_pos[4]);
+	if (CCT_present) { fseek(ifp, WBpreset_start_pos[4]+8LL, SEEK_SET);
+		printf(", CCT: %d K, expected: around 4000 K", get2()); }
+	printf("\n");
+
+	printf("\n>>> WBI_Flash @ 0x%llx", WBpreset_start_pos[5]);
+	if (CCT_present) { fseek(ifp, WBpreset_start_pos[5]+8LL, SEEK_SET);
+		printf(", CCT: %d K, expected: 6000 K or as set by the flash unit", get2()); }
+	printf("\n");
+	fseek(ifp, local_save_pos, SEEK_SET);
+*/
 
   return;
 }
@@ -733,14 +836,14 @@ void LibRaw::Canon_WBCTpresets(short WBCTversion)
   return;
 }
 
-void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len, unsigned dng_writer)
+void LibRaw::parseCanonMakernotes(unsigned tag, unsigned type, unsigned len, unsigned dng_writer)
 {
 
 #define AsShot_Auto_MeasuredWB(offset)                       \
   imCanon.ColorDataSubVer = get2();                          \
   fseek(ifp, save1 + (offset << 1), SEEK_SET);               \
   FORC4 cam_mul[RGGB_2_RGBG(c)] = (float)get2();             \
-  get2();                                                    \
+  imCanon.AsShotCT = get2();                                       \
   FORC4 icWBC[LIBRAW_WBI_Auto][RGGB_2_RGBG(c)] = get2();     \
   get2();                                                    \
   FORC4 icWBC[LIBRAW_WBI_Measured][RGGB_2_RGBG(c)] = get2();
@@ -825,6 +928,7 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
 
   } else if ((tag == 0x0009)  && (dng_writer == nonDNG)) {
     fread(artist, 64, 1, ifp);
+    artist[63] = 0;
 
   } else if (tag == 0x000c) {
     unsigned tS = get4();
@@ -836,10 +940,32 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
     if (!imCommon.afcount) {
       imCommon.afdata[imCommon.afcount].AFInfoData_tag = tag;
       imCommon.afdata[imCommon.afcount].AFInfoData_order = order;
-      imCommon.afdata[imCommon.afcount].AFInfoData_length = len;
-      imCommon.afdata[imCommon.afcount].AFInfoData = (uchar *)calloc(imCommon.afdata[imCommon.afcount].AFInfoData_length,1);
-      fread(imCommon.afdata[imCommon.afcount].AFInfoData, imCommon.afdata[imCommon.afcount].AFInfoData_length, 1, ifp);
-      imCommon.afcount = 1;
+	  imCommon.afdata[imCommon.afcount].AFInfoData_length = len;
+	  if (libraw_tagtype_dataunit_bytes(type)) // returns 0 on unknown type
+		  imCommon.afdata[imCommon.afcount].AFInfoData_length *= libraw_tagtype_dataunit_bytes(type);
+
+	  unsigned datalen = 0;
+	  if (tag == 0x0026 || tag == 0x003c) // AFInfo2 bytes 0-1 contains AFSize
+	  {
+		  INT64 here = ftell(ifp);
+		  datalen = get2();
+		  fseek(ifp, here, SEEK_SET);
+	  }
+	  if (!datalen || datalen == imCommon.afdata[imCommon.afcount].AFInfoData_length) // data check not performed or passed
+	  {
+        imCommon.afdata[imCommon.afcount].AFInfoData =
+            (uchar *)calloc(imCommon.afdata[imCommon.afcount].AFInfoData_length+1, 1);
+        fread(imCommon.afdata[imCommon.afcount].AFInfoData, imCommon.afdata[imCommon.afcount].AFInfoData_length, 1,
+              ifp);
+        imCommon.afcount = 1;
+	  }
+	  else
+	  {
+		  // check not passed: clean up afdata inited
+        imCommon.afdata[imCommon.afcount].AFInfoData_tag = 0;
+        imCommon.afdata[imCommon.afcount].AFInfoData_order = 0;
+        imCommon.afdata[imCommon.afcount].AFInfoData_length = 0;
+	  }
     }
 
   } else if ((tag == 0x0029) && (dng_writer == nonDNG)) { // PowerShot G9
@@ -874,6 +1000,7 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
   } else if (tag == 0x0095 && !ilm.Lens[0])
   { // lens model tag
     fread(ilm.Lens, 64, 1, ifp);
+    ilm.Lens[63] = 0;
     if (!strncmp(ilm.Lens, "EF-S", 4))
     {
       memmove(ilm.Lens + 5, ilm.Lens + 4, 60);
@@ -955,6 +1082,7 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
       imgdata.sizes.raw_aspect = LIBRAW_IMAGE_ASPECT_1to1;
       break;
     case 2:
+    case 0x102:
       imgdata.sizes.raw_aspect = LIBRAW_IMAGE_ASPECT_4to3;
       break;
     case 7:
@@ -1136,8 +1264,7 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
         fseek(ifp, save1 + (0x004f << 1), SEEK_SET);
         FORC4 icWBC[LIBRAW_WBI_Auto][RGGB_2_RGBG(c)] = get2();
         fseek(ifp, 8, SEEK_CUR);
-        FORC4 icWBC[LIBRAW_WBI_Measured][RGGB_2_RGBG(c)] =
-            get2();
+        FORC4 icWBC[LIBRAW_WBI_Measured][RGGB_2_RGBG(c)] = get2();
         fseek(ifp, 8, SEEK_CUR);
         FORC4 icWBC[LIBRAW_WBI_Other][RGGB_2_RGBG(c)] = get2();
         fseek(ifp, 8, SEEK_CUR);
@@ -1150,7 +1277,7 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
         offsetWhiteLevels = save1 + (0x0569 << 1);
       }
       else if (imCanon.ColorDataSubVer == 0xfffd) // ColorDataSubVer: 65533 (-3)
-                                                  // M10, M3
+                                                  // M3, M10
                                                   // G1 X, G1 X Mark II
                                                   // G3 X, G5 X, G7 X, G9 X
                                                   // G10, G11, G12, G15, G16
@@ -1159,12 +1286,12 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
       {
         fseek(ifp, save1 + (0x004c << 1), SEEK_SET);
         FORC4 icWBC[LIBRAW_WBI_Auto][RGGB_2_RGBG(c)] = get2();
-        get2();
-        FORC4 icWBC[LIBRAW_WBI_Measured][RGGB_2_RGBG(c)] =
-            get2();
-        get2();
+        c = get2();
+        FORC4 icWBC[LIBRAW_WBI_Measured][RGGB_2_RGBG(c)] = get2();
+        c = get2();
         FORC4 icWBC[LIBRAW_WBI_Other][RGGB_2_RGBG(c)] = get2();
-        get2();
+        c = get2();
+// printf("\n>>> WBI_Other @ 0x%llx, CCT: %d K\n", ftell(ifp)-10LL, c);
         Canon_WBpresets(2, 12);
         fseek(ifp, save1 + (0x00ba << 1), SEEK_SET);
         Canon_WBCTpresets(2); // BCADT
@@ -1234,9 +1361,9 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
       break;
 
     case 1820: // M50; ColorDataSubVer: 16
-    case 1824: // R; ColorDataSubVer: 17
+    case 1824: // R, Ra; ColorDataSubVer: 17
     case 1816: // RP, 250D, SX70 HS; ColorDataSubVer: 18
-               // M6 Mark II, M200, 90D, G5 X Mark II, G7 X Mark III, 850D; ColorDataSubVer: 19
+               // R100, M6 Mark II, M200, 90D, G5 X Mark II, G7 X Mark III, 850D; ColorDataSubVer: 19
       imCanon.ColorDataVer = 9;
       AsShot_Auto_MeasuredWB(0x0047);
       CR3_ColorData(0x0047);
@@ -1244,24 +1371,60 @@ void LibRaw::parseCanonMakernotes(unsigned tag, unsigned /*type*/, unsigned len,
 
     case 1770: // R5 CRM
     case 2024: // -1D X Mark III; ColorDataSubVer: 32
-    case 3656: // R5, R6; ColorDataSubVer: 33 
+    case 3656: // R5, R6; ColorDataSubVer: 33
       imCanon.ColorDataVer = 10;
       AsShot_Auto_MeasuredWB(0x0055);
       CR3_ColorData(0x0055);
       break;
 
-    case 3973: // R3; ColorDataSubVer: 34
-    case 3778: // R7, R10; ColorDataSubVer: 48
+    case 3973: // R3;                           ColorDataSubVer: 34
+    case 3778: // R6 Mark II, R7, R8, R10, R50; ColorDataSubVer: 48
+               // PowerShot V1, R50 V;          ColorDataSubVer: 65
+               // C50, R6 Mark III;             ColorDataSubVer: 66
       imCanon.ColorDataVer = 11;
       AsShot_Auto_MeasuredWB(0x0069);
 
-      fseek(ifp, save1 + ((0x0069+0x0064) << 1), SEEK_SET);
+			if (
+			    (imCanon.ColorDataSubVer == 65) ||
+			    (imCanon.ColorDataSubVer == 66)
+			   )
+			{
+						fseek(ifp, save1 + ((0x006d+0x0001) << 1), SEEK_SET);
+						Canon_WBpresets(2, 2);
+						fseek(ifp, save1 + ((0x0069+0x00d7) << 1), SEEK_SET);
+						Canon_WBCTpresets(0);
+						offsetChannelBlackLevel2 = save1 + ((0x0069+0x0116) << 1);
+						offsetChannelBlackLevel  = save1 + ((0x0069+0x0227) << 1);
+						offsetWhiteLevels        = save1 + ((0x0069+0x022b) << 1);
+			}
+			else {
+						fseek(ifp, save1 + ((0x0069+0x0064) << 1), SEEK_SET);
+						Canon_WBpresets(2, 12);
+
+						fseek(ifp, 22LL, SEEK_CUR);
+						FORC4 icWBC[LIBRAW_WBI_Other][RGGB_2_RGBG(c)] = get2();
+						c = get2();
+// printf("\n>>> WBI_Other @ 0x%llx, CCT: %d K\n", ftell(ifp)-10LL, c);
+
+						fseek(ifp, save1 + ((0x0069+0x00c3) << 1), SEEK_SET);
+						Canon_WBCTpresets(0);
+						offsetChannelBlackLevel2 = save1 + ((0x0069+0x0102) << 1);
+						offsetChannelBlackLevel  = save1 + ((0x0069+0x0213) << 1);
+						offsetWhiteLevels        = save1 + ((0x0069+0x0217) << 1);
+}
+      break;
+
+    case 1890: // R5mk2 CRM
+    case 4528: // R1, R5 Mark II; ColorDataSubVer: 64
+      imCanon.ColorDataVer = 12;
+      AsShot_Auto_MeasuredWB(0x0069);
+      fseek(ifp, save1 + ((0x006d+0x0001) << 1), SEEK_SET);
       Canon_WBpresets(2, 12);
-      fseek(ifp, save1 + ((0x0069+0x00c3) << 1), SEEK_SET);
+      fseek(ifp, save1 + ((0x0069+0x00d7) << 1), SEEK_SET);
       Canon_WBCTpresets(0);
-      offsetChannelBlackLevel2 = save1 + ((0x0069+0x0102) << 1);
-      offsetChannelBlackLevel  = save1 + ((0x0069+0x0213) << 1);
-      offsetWhiteLevels        = save1 + ((0x0069+0x0217) << 1);
+      offsetChannelBlackLevel2 = save1 + ((0x0069+0x0116) << 1);
+      offsetChannelBlackLevel  = save1 + ((0x0069+0x0227) << 1);
+      offsetWhiteLevels        = save1 + ((0x0069+0x022b) << 1);
       break;
 
    default:

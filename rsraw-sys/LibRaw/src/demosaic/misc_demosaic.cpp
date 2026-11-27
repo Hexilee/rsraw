@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -31,6 +31,24 @@ void LibRaw::pre_interpolate()
       width = iwidth;
       if (filters == 9)
       {
+        /* Find the all-green half-size phase from the CFA layout: scanning
+           pixel values for R == B == 0 picks a wrong phase when the top-left
+           corner is dark and noisy. */
+        int grow = -1, gcol = -1;
+        for (int r = 0; r < 3 && grow < 0; r++)
+          for (int k = 0; k < 3 && grow < 0; k++)
+            if (fcol(2 * r, 2 * k) == 1 && fcol(2 * r, 2 * k + 1) == 1 &&
+                fcol(2 * r + 1, 2 * k) == 1 && fcol(2 * r + 1, 2 * k + 1) == 1)
+            {
+              grow = r;
+              gcol = k ? k : 3; /* the fill below reads img[-1] */
+            }
+        if (grow >= 0)
+        {
+          row = grow;
+          col = gcol;
+          goto break2;
+        }
         for (row = 0; row < 3; row++)
           for (col = 1; col < 4; col++)
             if (!(image[row * width + col][0] | image[row * width + col][2]))
@@ -47,7 +65,8 @@ void LibRaw::pre_interpolate()
     }
     else
     {
-      img = (ushort(*)[4])calloc(height, width * sizeof *img);
+      int extra = filters ? (filters == 9 ? 6 : 2) : 0;
+      img = (ushort(*)[4])calloc((height+extra), (width+extra) * sizeof *img);
       for (row = 0; row < height; row++)
         for (col = 0; col < width; col++)
         {
@@ -153,7 +172,7 @@ void LibRaw::lin_interpolate()
           *ip++ = color;
           sum[color] += 1 << shift;
         }
-      code[(row * 16 + col) * 32] = (ip - (code + ((row * 16) + col) * 32)) / 3;
+      code[(row * 16 + col) * 32] = int((ip - (code + ((row * 16) + col) * 32)) / 3);
       FORCC
       if (c != f)
       {
@@ -212,6 +231,8 @@ void LibRaw::vng_interpolate()
   int prow = 8, pcol = 2, *ip, *code[16][16], gval[8], gmin, gmax, sum[4];
   int row, col, x, y, x1, x2, y1, y2, t, weight, grads, color, diag;
   int g, diff, thold, num, c;
+
+  if (width < 8 || height < 8) return;  // skip interploation on too small images
 
   lin_interpolate();
 

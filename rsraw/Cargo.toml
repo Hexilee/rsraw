@@ -1,6 +1,6 @@
 [package]
 name = "rsraw"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["hexilee <i@hexilee.me>"]
 description = "A comprehensive Rust wrapper for the LibRaw library, providing safe and idiomatic access to raw image processing capabilities, works on Linux/Windows/MacOS/iOS/Android."
@@ -16,5 +16,4 @@ exclude = ["tests/assets"]
 [dependencies]
 rsraw-sys = { path = "../rsraw-sys", version = "0.1" }
 chrono = { version = "0.4", features = ["clock", "serde"] }
-tracing = "0.1"
 serde = { version = "1.0", features = ["derive"] }

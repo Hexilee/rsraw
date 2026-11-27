@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -53,7 +53,31 @@ void LibRaw::tiff_set(struct tiff_hdr *th, ushort *ntag, ushort tag,
   tt->tag = tag;
 }
 
-#define TOFF(ptr) ((char *)(&(ptr)) - (char *)th)
+// local strnlen: we cannot use LibRaw::strnlen b/c it is protected
+static size_t local_static_strnlen(const char *s, size_t n)
+{
+#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
+  const char *p = (const char *)memchr(s, 0, n);
+  return (p ? p - s : n);
+#else
+  return strnlen(s, n);
+#endif
+}
+
+
+static void tiff_set_str4(struct tiff_hdr *th, ushort *ntag, ushort tag, ushort type, int count, const uchar* val)
+{
+  struct libraw_tiff_tag *tt;
+  int c;
+  tt = (struct libraw_tiff_tag *)(ntag + 1) + (*ntag)++;
+  count = int(local_static_strnlen((const char*)val, count-1)) + 1;
+  FORC(4) tt->val.c[c] = val[c];
+  tt->count = count;
+  tt->type = type;
+  tt->tag = tag;
+}
+
+#define TOFF(ptr) int((char *)(&(ptr)) - (char *)th)
 
 void LibRaw::tiff_head(struct tiff_hdr *th, int full)
 {
@@ -67,9 +91,9 @@ void LibRaw::tiff_head(struct tiff_hdr *th, int full)
   th->rat[0] = th->rat[2] = 300;
   th->rat[1] = th->rat[3] = 1;
   FORC(6) th->rat[4 + c] = 1000000;
-  th->rat[4] *= shutter;
-  th->rat[6] *= aperture;
-  th->rat[8] *= focal_len;
+  th->rat[4] = int(shutter * 1000000.f);
+  th->rat[6] = int(aperture * 1000000.f);
+  th->rat[8] = int(focal_len * 1000000.f);
   strncpy(th->t_desc, desc, 512);
   strncpy(th->t_make, make, 64);
   strncpy(th->t_model, model, 64);
@@ -100,8 +124,11 @@ void LibRaw::tiff_head(struct tiff_hdr *th, int full)
     tiff_set(th, &th->ntag, 273, 4, 1, sizeof *th + psize);
     tiff_set(th, &th->ntag, 277, 3, 1, colors);
     tiff_set(th, &th->ntag, 278, 4, 1, height);
-    tiff_set(th, &th->ntag, 279, 4, 1,
-             height * width * colors * output_bps / 8);
+	INT64 strip_bytes = INT64(height) * INT64(width) * INT64(colors) * INT64(output_bps) / 8LL;
+	if (strip_bytes >= 2147483647LL)
+		throw LIBRAW_EXCEPTION_TOOBIG; // bigtiff is not supported...
+	int strip_bytes_32 = strip_bytes;
+	tiff_set(th, &th->ntag, 279, 4, 1, strip_bytes_32);
   }
   else
     tiff_set(th, &th->ntag, 274, 3, 1, "12435867"[flip] - '0');
@@ -117,7 +144,7 @@ void LibRaw::tiff_head(struct tiff_hdr *th, int full)
     tiff_set(th, &th->ntag, 34675, 7, psize, sizeof *th);
   tiff_set(th, &th->nexif, 33434, 5, 1, TOFF(th->rat[4]));
   tiff_set(th, &th->nexif, 33437, 5, 1, TOFF(th->rat[6]));
-  tiff_set(th, &th->nexif, 34855, 3, 1, iso_speed);
+  tiff_set(th, &th->nexif, 34855, 3, 1, int(iso_speed));
   tiff_set(th, &th->nexif, 37386, 5, 1, TOFF(th->rat[8]));
   if (gpsdata[1])
   {
@@ -125,9 +152,9 @@ void LibRaw::tiff_head(struct tiff_hdr *th, int full)
           lonref[4] = { (uchar)(gpsdata[30]),0,0,0 };
     tiff_set(th, &th->ntag, 34853, 4, 1, TOFF(th->ngps));
     tiff_set(th, &th->ngps, 0, 1, 4, 0x202);
-    tiff_set(th, &th->ngps, 1, 2, 2, TOFF(latref));
+    tiff_set_str4(th, &th->ngps, 1, 2, 2, latref);
     tiff_set(th, &th->ngps, 2, 5, 3, TOFF(th->gps[0]));
-    tiff_set(th, &th->ngps, 3, 2, 2, TOFF(lonref));
+    tiff_set_str4(th, &th->ngps, 3, 2, 2, lonref);
     tiff_set(th, &th->ngps, 4, 5, 3, TOFF(th->gps[6]));
     tiff_set(th, &th->ngps, 5, 1, 1, gpsdata[31]);
     tiff_set(th, &th->ngps, 6, 5, 1, TOFF(th->gps[18]));
@@ -144,7 +171,7 @@ void LibRaw::jpeg_thumb_writer(FILE *tfp, char *t_humb, int t_humb_length)
   struct tiff_hdr th;
   fputc(0xff, tfp);
   fputc(0xd8, tfp);
-  if (strcmp(t_humb + 6, "Exif"))
+  if (memcmp(t_humb + 6, "Exif\0",5))
   {
     memcpy(exif, "\xff\xe1  Exif\0\0", 10);
     exif[1] = htons(8 + sizeof th);
@@ -163,7 +190,7 @@ void LibRaw::write_ppm_tiff()
         int c, row, col, soff, rstep, cstep;
         int perc, val, total, t_white = 0x2000;
 
-        perc = width * height * auto_bright_thr;
+        perc = int(width * height * auto_bright_thr);
 
         if (fuji_width)
             perc /= 2;
@@ -176,7 +203,7 @@ void LibRaw::write_ppm_tiff()
                 if (t_white < val)
                     t_white = val;
             }
-        gamma_curve(gamm[0], gamm[1], 2, (t_white << 3) / bright);
+        gamma_curve(gamm[0], gamm[1], 2, int((t_white << 3) / bright));
         iheight = height;
         iwidth = width;
         if (flip & 4)
@@ -195,10 +222,10 @@ void LibRaw::write_ppm_tiff()
 	{
 	    if(imgdata.params.output_flags & LIBRAW_OUTPUT_FLAGS_PPMMETA)
 	      fprintf(ofp,
-              "P7\n# EXPTIME=%0.5f\n# TIMESTAMP=%d\n# ISOSPEED=%d\n"
+              "P7\n# EXPTIME=%0.5f\n# TIMESTAMP=%lld\n# ISOSPEED=%d\n"
               "# APERTURE=%0.1f\n# FOCALLEN=%0.1f\n# MAKE=%s\n# MODEL=%s\n"
               "WIDTH %d\nHEIGHT %d\nDEPTH %d\nMAXVAL %d\nTUPLTYPE %s\nENDHDR\n",
-              shutter, (int)timestamp, (int)iso_speed,aperture, 
+              shutter, (long long int)timestamp, (int)iso_speed,aperture, 
 	      focal_len, make, model,
 	      width, height, colors, (1 << output_bps) - 1, cdesc);
 	    else
@@ -210,11 +237,11 @@ void LibRaw::write_ppm_tiff()
         else
 	{
 	    if(imgdata.params.output_flags & LIBRAW_OUTPUT_FLAGS_PPMMETA)
-	    	fprintf(ofp, "P%d\n# EXPTIME=%0.5f\n# TIMESTAMP=%d\n"
+	    	fprintf(ofp, "P%d\n# EXPTIME=%0.5f\n# TIMESTAMP=%lld\n"
 		"# ISOSPEED=%d\n# APERTURE=%0.1f\n# FOCALLEN=%0.1f\n"
 		"# MAKE=%s\n# MODEL=%s\n%d %d\n%d\n",
                 colors/2+5,
-		shutter, (int)timestamp, (int)iso_speed,aperture,focal_len,
+		shutter, (long long int)timestamp, (int)iso_speed,aperture,focal_len,
 		make,model,
 		width, height, (1 << output_bps)-1);
 	    else

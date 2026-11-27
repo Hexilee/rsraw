@@ -31,6 +31,8 @@
               <li><a href="#versionNumber">int LibRaw::versionNumber()</a></li>
               <li><a href="#LIBRAW_CHECK_VERSION">bool
                   LIBRAW_CHECK_VERSION(major,minor,patch)</a></li>
+              <li><a href="#capabilities">static unsigned capabilities()</a></li>
+              <li><a href="#versioncheck">static unsigned LibRaw::abi_version() and unsigned LibRaw::caller_abi_version()</a></li>
             </ul>
           </li>
           <li>List of supported cameras
@@ -61,6 +63,7 @@
               LibRaw_progress code)</a></li>
           <li><a href="#libraw_strerror">const char* LibRaw::strerror(int
               errorcode)</a></li>
+          <li><a href="#simplify_make_model">static LibRaaw::simplify_make_model</a>
           <li><a href="#callbacks">Setting Error Notification Functions and
               other callbacks</a>
             <ul>
@@ -139,13 +142,20 @@
     <h2>LibRaw Objects</h2>
     <p>The main LibRaw object (class) is created either without parameters or
       with flags determining the object behavior.</p>
-    <pre>#include "libraw/libraw.h"<br>...<br><br>   LibRaw ImageProcessor(unsigned int flags=0);<br>...<br>    </pre>
+    <pre>#include "libraw/libraw.h"<br>...<br><br>   LibRaw ImageProcessor(unsigned int flags=0,unsigned caller_abi = LIBRAW_ABI_VERSION);<br>...<br>    </pre>
     <p>Flags (several flags are combined via operator |, i.e., bitwise OR):</p>
     <ul>
       <li><strong>LIBRAW_OPTIONS_NO_DATAERR_CALLBACK</strong>: do not set the
         standard <a href="#callbacks">file read error handler</a> (standard
         handler outputs the error report in stderr).</li>
     </ul>
+    <p>caller_abi - default parameter (substituted by the compiler) equal to the value of the LIBRAW_ABI_VERSION macro taken from the library header files.</p>
+    <p>This option is introduced to prevent mixing of header files from one version of the library and the compiled library of another version (since they may be incompatible).</p>
+    <p>Unless explicitly specified, the caller_abi parameter is automatically set to LIBRAW_ABI_VERSION, which is defined in libraw_version.h and incremented whenever the LibRaw class interface changes.</p>
+    <p>When LibRaw::open_file() or LibRaw::open_datastream() is called, the library validates the caller_abi value passed to the constructor against the ABI version used during library compilation. If the two versions do
+    not match, the function returns the error code LIBRAW_VERSION_MISMATCH.
+</p>
+
     <p>Three groups of methods are used for image processing</p>
     <ul>
       <li><a href="#dataload">Data loading from the RAW file</a></li>
@@ -305,6 +315,27 @@
       library version is greater or equal to set in macro parameters. This macro
       executes at runtime (not at compile time) and may be used for checking
       version of dynamically loaded LibRaw (from DLL/shared library).</p>
+      <a name="capabilities"></a>
+    <h4>static unsigned LibRaw::capabilities</h4>
+    <p>Returns a bit field containing the library compilation flags (supported features):</p>
+    <ul>
+<li>LIBRAW_CAPS_RAWSPEED - compiled with RawSpeed (version 1) support
+<li>LIBRAW_CAPS_DNGSDK - compiled with Adobe DNG SDK
+<li>LIBRAW_CAPS_GPRSDK - compiled with GoPro SDK
+<li>LIBRAW_CAPS_UNICODEPATHS - has unicode paths support (Windows)
+<li>LIBRAW_CAPS_X3FTOOLS - compiled with X3F tools enabled
+<li>LIBRAW_CAPS_RPI6BY9 - compiled with enhanced Rapsberry Pi camera support
+<li>LIBRAW_CAPS_ZLIB - compiled with Zlib (deflate decompression support)
+<li>LIBRAW_CAPS_JPEG - compiled with libjpeg (JPEG decompression support)
+<li>LIBRAW_CAPS_RAWSPEED3 - compiled with RawSpeed v3
+<li>LIBRAW_CAPS_RAWSPEED_BITS - compiled with RawSpeed control via use_rawspeed bit-field
+    </ul>
+      <a name="versioncheck"></a>
+      <h4>static unsigned LibRaw::abi_version()</h4>
+      <p>returns library compile-time LIBRAW_ABI_VERSION value.</p>
+      <h4>unsigned LibRaw::caller_abi_version()</h4>
+      <p>returns caller_abi value passed to LibRaw class instance on creation</p>
+
     <h3>List of supported RAW formats (cameras)</h3>
     <p><a name="cameraCount"></a></p>
     <h4>int LibRaw::cameraCount()</h4>
@@ -342,9 +373,9 @@
       decoder may work again.</p>
     <p><a name="COLOR"></a></p>
     <h4>int LibRaw::COLOR(int row, int col)</h4>
-    <p>This call returns pixel color (color component number) in bayer pattern at
-      row,col. The returned value is in 0..3 range for 4-component Bayer (RGBG2,
-      CMYG and so on) and in 0..2 range for 3-color data.</p>
+    <p>This call returns pixel color (color component number) in bayer pattern
+      at row,col. The returned value is in 0..3 range for 4-component Bayer
+      (RGBG2, CMYG and so on) and in 0..2 range for 3-color data.</p>
     <p>Color indexes returned could be used as index in imgdata.idata.cdesc
       string to get color 'name'.</p>
     <p><a name="error_count"></a></p>
@@ -445,6 +476,27 @@
     <h3>const char* LibRaw::strerror(int errorcode)</h3>
     <p>Analog of strerror(3) function: outputs the text descriptions of LibRaw
       error codes (in English).</p>
+        <p><a name="simplify_make_model"></a></p>
+    <h3>static void LibRaw::simplify_make_model(unsigned * mkindex, char *mkbuf,
+      unsigned mkbuf_size, char *modelbuf, unsigned modelbuf_size)</h3>
+    This call can be used to simplify/standardize vendor name/model received
+    from external source (e.g. EXIF block in JPEG file).
+    <p></p>
+    Parameters:
+    <ul>
+      <li>mkindex: pointer to received maker index (LibRaw_CAMERAMAKER_...) </li>
+      <li>mkbuf, mkbuf_size: buffer with make string, buffer size </li>
+      <li>modelbuf, modelbuf_size: buffer with model string. </li>
+    </ul>
+    simplify_make_model(..) simplifies/re-writes vendor name/model in place, in
+    provided buffers.
+    <p> return values: </p>
+    <ul>
+      <li>0 - mkindex is set (if non-null pointer provided), data simplified; </li>
+      <li>1 - mkindex is not set, while some data processing is done; </li>
+      <li>-1 - incorrect parameters; </li>
+    </ul>
+
     <p><a name="callbacks"></a></p>
     <h3>Setting Error Notification Functions</h3>
     <p>In process of RAW conversion LibRaw can call user-setted callback. This
@@ -497,7 +549,7 @@
     <pre>int my_progress_callback(void *data,enum LibRaw_progress p,int iteration, int expected)<br>{<br>    char *passed_string = (char *data);<br>    printf("Callback: %s  pass %d of %d, data passed: %s\n",libraw_strprogress(p),iteration,expected,passed_string);<br>    if(timeout || key_pressed )<br>        return 1; // cancel processing immediately<br>    else<br>        return 0; // can continue<br>}</pre>
     <p><a name="exif"></a></p>
     <h4>User-specified exif tag parser callback</h4>
-    <pre>       typedef void (*exif_parser_callback) (void *context, int tag, int type, int len,unsigned int ord, void *ifp);<br>       void    LibRaw::set_exifparser_handler( exif_parser_callback cb,void *context);<br>    </pre>
+    <pre>       typedef void (*exif_parser_callback) (void *context, int tag, int type, int len,unsigned int ord, void *ifp);<br>       void    LibRaw::set_exifparser_handler( exif_parser_callback cb,void *context);<br>       void    LibRaw::set_makernotes_handler( exif_parser_callback cb,void *context);</pre>
     <p>Callback to be called on each parsed EXIF/Makernotes tag with parameters:</p>
     <ul>
       <li>context - pointer to context passed to set_exifparser_handler();</li>
@@ -641,7 +693,6 @@
         buffer as JPEG-file image (for most cameras) or as RGB-bitmap.</li>
     </ul>
     <p>For usage primer see samples/mem_image.c sample.</p>
-    <p>&nbsp;</p>
     <p><a name="get_mem_image_format"></a></p>
     <h3>void get_mem_image_format(int *widthp, int *heightp, int *colorsp, int
       *bpp) const - return processing bitmap size</h3>
@@ -696,7 +747,7 @@
     <p>unpack_thumb() should be called before dcraw_make_mem_thumb();</p>
     <p>Returns NULL in case of an error. If caller has passed not-NULL value as
       errorcode parameter, than *errorcode will be set to error code according
-      to ñ <a href="API-notes.html#errors">error code convention</a>.</p>
+      to ï¿½ <a href="API-notes.html#errors">error code convention</a>.</p>
     <p><strong>NOTE!</strong> Memory, allocated for return value will not be
       fried at destructor or <strong>LibRaw::recycle</strong> calls. Caller of
       dcraw_make_mem_image should free this memory by call to <a href="#dcraw_clear_mem">LibRaw::dcraw_clear_mem()</a>.</p>
@@ -751,10 +802,6 @@
         This object is used by libjpeg for JPEG data reading from datastream.
         <p>Returns -1 on error and 0 on success.</p>
       </dd>
-      <dt><strong> virtual void * make_jas_stream();</strong></dt>
-      <dd>Creates LibJasper input stream (for JPEG2000 decoding).
-        <p>returns NULL on error or data pointer on success.</p>
-      </dd>
     </dl>
     <p><a name="datastream_methods_other"></a></p>
     <h5>Other methods</h5>
@@ -772,35 +819,11 @@
             (i.e. cameras with 'Diag RAW hack').</li>
         </ul>
       </dd>
-      <dt><strong>virtual int subfile_open(const char *fn)</strong></dt>
-      <dd>This call temporary switches input to file <strong>fn</strong>.
-        Returns 0 on success and error code on error.<br>
-        The function used to read metadata from external JPEG file (on cameras
-        with "Diag RAW hack"). <br>
-        This call is not implemented for <a href="#buffer_datastream">LibRaw_buffer_datastream</a>,
-        so external JPEG processing is not possible when buffer datastream used.
-        <br>
-        This function should be implemented in real input class, base class call
-        always return error. <br>
-        Working implementation sample can be found in <a href="#file_datastream">LibRaw_file_datastream</a>
-        implementation in <strong>libraw/libraw_datastream.h</strong> file.</dd>
-      <dt><strong> virtual void subfile_close()</strong></dt>
-      <dd>This call switches input stream from temporary open file back to main
-        data stream.</dd>
-      <dt><strong> virtual int tempbuffer_open(void *buf, size_t size)</strong></dt>
-      <dd>This call temporary switches input to <a href="#buffer_datastream">LibRaw_buffer_datastream</a>
-        object, created from <strong>buf</strong>.<br>
-        This method is needed for Sony encrypted metadata parser.
-        <p>This call implemented in base class (<strong>LibRaw_abstract_datastream</strong>),
-          there is no need to reimplement in in derived classes.<br>
-          Possible activity of temporary datastream requires very accurate
-          programming when implementing datastreams derived from base <strong>LibRaw_abstract_datastream</strong>.
-          See <a href="#substream">below</a> for more details.</p>
-      </dd>
-      <dt><strong> virtual void tempbuffer_close()</strong></dt>
-      <dd>This call switch input back from temporary datastream to main stream.
-        This call implemented in base <strong>LibRaw_abstract_datastream</strong>
-        class.</dd>
+      <dt><strong>virtual bool is_buffered();</strong><br>
+        <strong>virtual bool buffering_on();</strong><br>
+        <strong>virtual bool buffering_off();</strong> </dt>
+      <dd>Checks, turns on/off internal buffering (if implemented by
+        implementation) </dd>
     </dl>
     <p><a name="datastream_derived"></a></p>
     <h3>Derived input classes included in LibRaw</h3>

@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
  dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
@@ -36,7 +36,7 @@ void LibRaw::xtrans_interpolate(int passes)
   short allhex[3][3][2][8];
   ushort sgrow = 0, sgcol = 0;
 
-  if (width < LIBRAW_AHD_TILE || height < LIBRAW_AHD_TILE)
+  if (width < LIBRAW_AHD_TILE || height < LIBRAW_AHD_TILE || filters != 9)
     throw LIBRAW_EXCEPTION_IO_CORRUPT; // too small image
                                        /* Check against right pattern */
   for (int row = 0; row < 6; row++)
@@ -82,8 +82,8 @@ void LibRaw::xtrans_interpolate(int passes)
                 int h = orth[d + 2] * patt[g][c * 2] + orth[d + 3] * patt[g][c * 2 + 1];
                 minv = MIN(v, minv);
                 maxv = MAX(v, maxv);
-                minh = MIN(v, minh);
-                maxh = MAX(v, maxh);
+                minh = MIN(h, minh);
+                maxh = MAX(h, maxh);
                 allhex[row][col][0][c ^ (g * 2 & d)] = h + v * width;
                 allhex[row][col][1][c ^ (g * 2 & d)] = h + v * LIBRAW_AHD_TILE;
             }
@@ -173,9 +173,13 @@ void LibRaw::xtrans_interpolate(int passes)
 
   size_t buffer_size = LIBRAW_AHD_TILE * LIBRAW_AHD_TILE * (ndir * 11 + 6);
   char** buffers = malloc_omp_buffers(buffer_count, buffer_size);
+  INT64 allocate_sz = (INT64(iheight) + 6) * (INT64(iwidth) + 6) * sizeof(ushort)*4LL;
+    ushort (*destimage)[4] = (ushort(*)[4])calloc(allocate_sz, 1);
+  // For border interpolate: keep original pixels
+  memmove(destimage,image,allocate_sz);
 
 #if defined(LIBRAW_USE_OPENMP)
-# pragma omp parallel for schedule(dynamic) default(none) firstprivate(buffers, allhex, passes, sgrow, sgcol, ndir) shared(dir) 
+# pragma omp parallel for schedule(dynamic) default(none) firstprivate(buffers, allhex, passes, sgrow, sgcol, ndir) shared(dir, destimage) 
 #endif
     for (int top = 3; top < height - 19; top += LIBRAW_AHD_TILE - 16)
     {
@@ -360,9 +364,11 @@ void LibRaw::xtrans_interpolate(int passes)
                         lix = &lab[row][col];
                         int g = 2 * lix[0][0] - lix[f][0] - lix[-f][0];
                         drv[d][row][col] =
+							float(
                             SQR(g) +
                             SQR((2 * lix[0][1] - lix[f][1] - lix[-f][1] + g * 500 / 232)) +
-                            SQR((2 * lix[0][2] - lix[f][2] - lix[-f][2] - g * 500 / 580));
+                            SQR((2 * lix[0][2] - lix[f][2] - lix[-f][2] - g * 500 / 580))
+								);
                     }
             }
 
@@ -418,7 +424,7 @@ void LibRaw::xtrans_interpolate(int passes)
                             FORC3 avg[c] += rgb[dd][row][col][c];
                             avg[3]++;
                         }
-                    FORC3 image[(row + top) * width + col + left][c] = avg[c] / avg[3];
+                    FORC3 destimage[(row + top) * width + col + left][c] = avg[c] / avg[3];
                 }
         }
     }
@@ -428,6 +434,8 @@ void LibRaw::xtrans_interpolate(int passes)
 #endif
 
     free_omp_buffers(buffers, buffer_count);
+    free(image);
+    image = destimage;
 
     border_interpolate(8);
 }
