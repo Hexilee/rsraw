@@ -50,6 +50,37 @@ BSD-style License
 /* Reading and writing - assuming little endian in the file              */
 /* --------------------------------------------------------------------- */
 
+static void *x3f_limited_malloc(UINT64 sz)
+{
+  if (sz > LIBRAW_X3F_ALLOC_LIMIT_MB * 1024ULL * 1024ULL)
+    throw LIBRAW_EXCEPTION_TOOBIG;
+  void *ret = malloc(sz);
+  if (!ret)
+    throw LIBRAW_EXCEPTION_ALLOC;
+  return ret;
+}
+
+static void *x3f_limited_calloc(UINT64 n, UINT64 sz)
+{
+  if (sz * n > LIBRAW_X3F_ALLOC_LIMIT_MB * 1024ULL * 1024ULL)
+    throw LIBRAW_EXCEPTION_TOOBIG;
+  void *ret = calloc(n, sz);
+  if (!ret)
+    throw LIBRAW_EXCEPTION_ALLOC;
+  return ret;
+}
+
+static void *x3f_limited_realloc(void *ptr, UINT64 sz)
+{
+  if (sz > LIBRAW_X3F_ALLOC_LIMIT_MB * 1024ULL * 1024ULL)
+    throw LIBRAW_EXCEPTION_TOOBIG;
+  void *ret = realloc(ptr, sz);
+  if (!ret)
+    throw LIBRAW_EXCEPTION_ALLOC;
+  return ret;
+}
+
+
 static int x3f_get1(LibRaw_abstract_datastream *f)
 {
   /* Little endian file */
@@ -134,7 +165,7 @@ unsigned x3f_get4(LibRaw_abstract_datastream *f)
     int _i;                                                                    \
     (_T).size = (_NUM);                                                        \
     (_T).element =                                                             \
-        (_TYPE *)realloc((_T).element, (_NUM) * sizeof((_T).element[0]));      \
+        (_TYPE *)x3f_limited_realloc((_T).element, (_NUM) * sizeof((_T).element[0]));      \
     for (_i = 0; _i < (int)(_T).size; _i++)                                         \
       _GETX((_T).element[_i]);                                                 \
   } while (0)
@@ -144,7 +175,7 @@ unsigned x3f_get4(LibRaw_abstract_datastream *f)
   {                                                                            \
     int _i;                                                                    \
     (_T).size = (_NUM);                                                        \
-    (_T).element = (x3f_property_t *)realloc(                                  \
+    (_T).element = (x3f_property_t *)x3f_limited_realloc(                                  \
         (_T).element, (_NUM) * sizeof((_T).element[0]));                       \
     for (_i = 0; _i < (int)(_T).size; _i++)                                         \
     {                                                                          \
@@ -161,7 +192,7 @@ unsigned x3f_get4(LibRaw_abstract_datastream *f)
     for (_i = 0;; _i++)                                                        \
     {                                                                          \
       (_T).size = _i + 1;                                                      \
-      (_T).element = (x3f_true_huffman_element_t *)realloc(                    \
+      (_T).element = (x3f_true_huffman_element_t *)x3f_limited_realloc(                    \
           (_T).element, (_i + 1) * sizeof((_T).element[0]));                   \
       GET1((_T).element[_i].code_size);                                        \
       GET1((_T).element[_i].code);                                             \
@@ -182,7 +213,7 @@ static void new_huffman_tree(x3f_hufftree_t *HTP, int bits)
 
   HTP->free_node_index = 0;
   HTP->total_node_index = HUF_TREE_MAX_NODES(leaves);
-  HTP->nodes = (x3f_huffnode_t *)calloc(1, HUF_TREE_MAX_NODES(leaves) *
+  HTP->nodes = (x3f_huffnode_t *)x3f_limited_calloc(1, HUF_TREE_MAX_NODES(leaves) *
                                                sizeof(x3f_huffnode_t));
 }
 
@@ -209,7 +240,7 @@ static void cleanup_true(x3f_true_t **TRUP)
 
 static x3f_true_t *new_true(x3f_true_t **TRUP)
 {
-  x3f_true_t *TRU = (x3f_true_t *)calloc(1, sizeof(x3f_true_t));
+  x3f_true_t *TRU = (x3f_true_t *)x3f_limited_calloc(1, sizeof(x3f_true_t));
 
   cleanup_true(TRUP);
 
@@ -241,7 +272,7 @@ static void cleanup_quattro(x3f_quattro_t **QP)
 
 static x3f_quattro_t *new_quattro(x3f_quattro_t **QP)
 {
-  x3f_quattro_t *Q = (x3f_quattro_t *)calloc(1, sizeof(x3f_quattro_t));
+  x3f_quattro_t *Q = (x3f_quattro_t *)x3f_limited_calloc(1, sizeof(x3f_quattro_t));
   int i;
 
   cleanup_quattro(QP);
@@ -286,7 +317,7 @@ static void cleanup_huffman(x3f_huffman_t **HUFP)
 
 static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
 {
-  x3f_huffman_t *HUF = (x3f_huffman_t *)calloc(1, sizeof(x3f_huffman_t));
+  x3f_huffman_t *HUF = (x3f_huffman_t *)x3f_limited_calloc(1, sizeof(x3f_huffman_t));
 
   cleanup_huffman(HUFP);
 
@@ -317,9 +348,7 @@ static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
   if (!infile)
     return NULL;
   INT64 fsize = infile->size();
-  x3f_t *x3f = (x3f_t *)calloc(1, sizeof(x3f_t));
-  if (!x3f)
-    throw LIBRAW_EXCEPTION_ALLOC;
+  x3f_t *x3f = (x3f_t *)x3f_limited_calloc(1, sizeof(x3f_t));
   try
   {
     x3f_info_t *I = NULL;
@@ -344,11 +373,9 @@ static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
     }
 
     GET4(H->version);
-    GETN(H->unique_identifier, SIZE_UNIQUE_IDENTIFIER);
-    /* TODO: the meaning of the rest of the header for version >= 4.0 (Quattro)
-     * is unknown */
     if (H->version < X3F_VERSION_4_0)
     {
+      GETN(H->unique_identifier, SIZE_UNIQUE_IDENTIFIER);
       GET4(H->mark_bits);
       GET4(H->columns);
       GET4(H->rows);
@@ -365,6 +392,17 @@ static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
         for (i = 0; i < num_ext_data; i++)
           GET4F(H->extended_data[i]);
       }
+    }
+    else if (H->version < X3F_VERSION(5, 0))
+    {
+      /* TODO: the meaning of the rest of the header for version >= 4.0 
+      * (Quattro) is unknown */
+      infile->seek(12, SEEK_CUR);
+      GETN(H->unique_identifier, SIZE_UNIQUE_IDENTIFIER);
+      infile->seek(4, SEEK_CUR);
+      GET4(H->columns);
+      GET4(H->rows);
+      GET4(H->rotation);
     }
 
     /* Go to the beginning of the directory */
@@ -383,7 +421,7 @@ static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
     if (DS->num_directory_entries > 0)
     {
       size_t size = DS->num_directory_entries * sizeof(x3f_directory_entry_t);
-      DS->directory_entry = (x3f_directory_entry_t *)calloc(1, size);
+      DS->directory_entry = (x3f_directory_entry_t *)x3f_limited_calloc(1, size);
     }
 
     /* Traverse the directory */
@@ -391,7 +429,7 @@ static x3f_huffman_t *new_huffman(x3f_huffman_t **HUFP)
     {
       x3f_directory_entry_t *DE = &DS->directory_entry[d];
       x3f_directory_entry_header_t *DEH = &DE->header;
-      uint32_t save_dir_pos;
+      INT64 save_dir_pos;
 
       /* Read the directory entry info */
       GET4(DE->input.offset);
@@ -841,13 +879,15 @@ static void print_huffman_tree(x3f_huffnode_t *t, int length, uint32_t code)
 typedef struct bit_state_s
 {
   uint8_t *next_address;
+  uint8_t *last_address;
   uint8_t bit_offset;
   uint8_t bits[8];
 } bit_state_t;
 
-static void set_bit_state(bit_state_t *BS, uint8_t *address)
+static void set_bit_state(bit_state_t *BS, uint8_t *address, uint8_t* last_addr)
 {
   BS->next_address = address;
+  BS->last_address = last_addr;
   BS->bit_offset = 8;
 }
 
@@ -864,6 +904,8 @@ static uint8_t get_bit(bit_state_t *BS)
       byte = byte >> 1;
     }
     BS->next_address++;
+	if (BS->next_address > BS->last_address) 
+		throw LIBRAW_EXCEPTION_IO_CORRUPT;
     BS->bit_offset = 0;
   }
 
@@ -939,7 +981,7 @@ static void true_decode_one_color(x3f_image_data_t *ID, int color)
   x3f_area16_t *area = &TRU->x3rgb16;
   uint16_t *dst = area->data + color;
 
-  set_bit_state(&BS, TRU->plane_address[color]);
+  set_bit_state(&BS, TRU->plane_address[color],(uint8_t*)ID->data+ID->data_size);
 
   row_start_acc[0][0] = seed;
   row_start_acc[0][1] = seed;
@@ -1045,7 +1087,7 @@ static void huffman_decode_row(x3f_info_t * /*I*/, x3f_directory_entry_t *DE,
 
   if (HUF->row_offsets.element[row] > ID->data_size - 1)
 	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
-  set_bit_state(&BS, (uint8_t *)ID->data + HUF->row_offsets.element[row]);
+  set_bit_state(&BS, (uint8_t *)ID->data + HUF->row_offsets.element[row], (uint8_t*)ID->data+ID->data_size);
 
   for (col = 0; col < (int)ID->columns; col++)
   {
@@ -1114,14 +1156,21 @@ static int32_t get_simple_diff(x3f_huffman_t *HUF, uint16_t index)
 }
 
 static void simple_decode_row(x3f_info_t * /*I*/, x3f_directory_entry_t *DE,
-                              int bits, int row, int row_stride)
+                              int bits, int row, uint32_t row_stride)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
   x3f_huffman_t *HUF = ID->huffman;
 
-  if (row*row_stride > (int)(ID->data_size - (ID->columns*sizeof(uint32_t))))
-	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
+  // 64bit compute to avoid 32 bit overflow
+  uint64_t needed = uint64_t(ID->columns) * sizeof(uint32_t);
+  uint64_t offset = uint64_t(row) * uint64_t(row_stride);
+
+  if (row_stride < needed)
+    throw LIBRAW_EXCEPTION_IO_CORRUPT;
+  if (offset > uint64_t(ID->data_size) || needed > uint64_t(ID->data_size) - offset)
+    throw LIBRAW_EXCEPTION_IO_CORRUPT;
+
   uint32_t *data = (uint32_t *)((unsigned char *)ID->data + row * row_stride);
 
   uint16_t c[3] = {0, 0, 0};
@@ -1174,7 +1223,7 @@ static void simple_decode_row(x3f_info_t * /*I*/, x3f_directory_entry_t *DE,
       case X3F_IMAGE_THUMB_HUFFMAN:
         c_fix = (int8_t)c[color] > 0 ? c[color] : 0;
 
-        HUF->rgb8.data[3 * (row * ID->columns + col) + color] = c_fix;
+        HUF->rgb8.data[3 * (row * ID->columns + col) + color] = uint8_t(c_fix);
         break;
       default:
         /* TODO: Shouldn't this be treated as a fatal error? */
@@ -1185,7 +1234,7 @@ static void simple_decode_row(x3f_info_t * /*I*/, x3f_directory_entry_t *DE,
 }
 
 static void simple_decode(x3f_info_t *I, x3f_directory_entry_t *DE, int bits,
-                          int row_stride)
+                          uint32_t row_stride)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
@@ -1215,13 +1264,13 @@ static void read_data_set_offset(x3f_info_t *I, x3f_directory_entry_t *DE,
 static uint32_t read_data_block(void **data, x3f_info_t *I,
                                 x3f_directory_entry_t *DE, uint32_t footer)
 {
-  INT64 fpos = I->input.file->tell();
+  uint32_t fpos = (I->input.file->tell() & 0x7fffffffU) ;
   uint32_t size = DE->input.size + DE->input.offset - fpos - footer;
 
   if (fpos + size > I->input.file->size())
     throw LIBRAW_EXCEPTION_IO_CORRUPT;
-
-  *data = (void *)malloc(size);
+ 
+  *data = (void *)x3f_limited_malloc(size);
 
   GETN(*data, size);
 
@@ -1231,8 +1280,9 @@ static uint32_t read_data_block(void **data, x3f_info_t *I,
 static uint32_t data_block_size(void ** /*data*/, x3f_info_t *I,
                                 x3f_directory_entry_t *DE, uint32_t footer)
 {
+  uint32_t fpos = (I->input.file->tell() & 0x7fffffffU);
   uint32_t size =
-      DE->input.size + DE->input.offset - I->input.file->tell() - footer;
+      DE->input.size + DE->input.offset - fpos - footer;
   return size;
 }
 
@@ -1343,6 +1393,14 @@ static void x3f_load_true(x3f_info_t *I, x3f_directory_entry_t *DE)
 #endif
 
   TRU->plane_address[0] = (uint8_t *)ID->data;
+  // Check for total plane size
+  uint64_t psz = 0;
+  for (i = 0; i < TRUE_PLANES; i++)
+	  psz += (((TRU->plane_size.element[i] + 15) / 16) * 16);
+
+  if (psz > ID->data_size)
+	  throw LIBRAW_EXCEPTION_IO_CORRUPT;
+
   for (i = 1; i < TRUE_PLANES; i++)
     TRU->plane_address[i] = TRU->plane_address[i - 1] +
                             (((TRU->plane_size.element[i - 1] + 15) / 16) * 16);
@@ -1356,36 +1414,51 @@ static void x3f_load_true(x3f_info_t *I, x3f_directory_entry_t *DE)
     uint32_t columns = Q->plane[0].columns;
     uint32_t rows = Q->plane[0].rows;
     uint32_t channels = 3;
-    uint32_t size = columns * rows * channels;
+    UINT64 size = UINT64(columns) * UINT64(rows) * UINT64(channels);
 
     TRU->x3rgb16.columns = columns;
     TRU->x3rgb16.rows = rows;
     TRU->x3rgb16.channels = channels;
     TRU->x3rgb16.row_stride = columns * channels;
-    TRU->x3rgb16.buf = malloc(sizeof(uint16_t) * size);
+    TRU->x3rgb16.buf =
+#ifdef LIBRAW_CALLOC_RAWSTORE
+        x3f_limited_calloc(sizeof(uint16_t) * size, 1);
+#else
+		x3f_limited_malloc(sizeof(uint16_t) * size);
+#endif
     TRU->x3rgb16.data = (uint16_t *)TRU->x3rgb16.buf;
 
     columns = Q->plane[2].columns;
     rows = Q->plane[2].rows;
     channels = 1;
-    size = columns * rows * channels;
+    size = UINT64(columns) * UINT64(rows) * UINT64(channels);
 
     Q->top16.columns = columns;
     Q->top16.rows = rows;
     Q->top16.channels = channels;
     Q->top16.row_stride = columns * channels;
-    Q->top16.buf = malloc(sizeof(uint16_t) * size);
+    Q->top16.buf =
+#ifdef LIBRAW_CALLOC_RAWSTORE
+        x3f_limited_calloc(sizeof(uint16_t) * size, 1);
+#else
+        x3f_limited_malloc(sizeof(uint16_t) * size);
+#endif
     Q->top16.data = (uint16_t *)Q->top16.buf;
   }
   else
   {
-    uint32_t size = ID->columns * ID->rows * 3;
+    UINT64 size = UINT64(ID->columns) * UINT64(ID->rows) * 3ULL;
 
     TRU->x3rgb16.columns = ID->columns;
     TRU->x3rgb16.rows = ID->rows;
     TRU->x3rgb16.channels = 3;
     TRU->x3rgb16.row_stride = ID->columns * 3;
-    TRU->x3rgb16.buf = malloc(sizeof(uint16_t) * size);
+    TRU->x3rgb16.buf =
+#ifdef LIBRAW_CALLOC_RAWSTORE
+        x3f_limited_calloc(sizeof(uint16_t) * size, 1);
+#else
+        x3f_limited_malloc(sizeof(uint16_t) * size);
+#endif
     TRU->x3rgb16.data = (uint16_t *)TRU->x3rgb16.buf;
   }
 
@@ -1417,7 +1490,7 @@ static void x3f_load_huffman_compressed(x3f_info_t *I,
 
 static void x3f_load_huffman_not_compressed(x3f_info_t *I,
                                             x3f_directory_entry_t *DE, int bits,
-                                            int /*use_map_table*/, int row_stride)
+                                            int /*use_map_table*/, uint32_t row_stride)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
@@ -1429,12 +1502,12 @@ static void x3f_load_huffman_not_compressed(x3f_info_t *I,
 }
 
 static void x3f_load_huffman(x3f_info_t *I, x3f_directory_entry_t *DE, int bits,
-                             int use_map_table, int row_stride)
+                             int use_map_table, uint32_t row_stride)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
   x3f_huffman_t *HUF = new_huffman(&ID->huffman);
-  uint32_t size;
+  UINT64 size;
 
   if (use_map_table)
   {
@@ -1447,21 +1520,31 @@ static void x3f_load_huffman(x3f_info_t *I, x3f_directory_entry_t *DE, int bits,
   {
   case X3F_IMAGE_RAW_HUFFMAN_X530:
   case X3F_IMAGE_RAW_HUFFMAN_10BIT:
-    size = ID->columns * ID->rows * 3;
+    size = UINT64(ID->columns) * UINT64(ID->rows) * 3ULL;
     HUF->x3rgb16.columns = ID->columns;
     HUF->x3rgb16.rows = ID->rows;
     HUF->x3rgb16.channels = 3;
     HUF->x3rgb16.row_stride = ID->columns * 3;
-    HUF->x3rgb16.buf = malloc(sizeof(uint16_t) * size);
+    HUF->x3rgb16.buf =
+#ifdef LIBRAW_CALLOC_RAWSTORE
+        x3f_limited_calloc(sizeof(uint16_t) * size, 1);
+#else
+        x3f_limited_malloc(sizeof(uint16_t) * size);
+#endif
     HUF->x3rgb16.data = (uint16_t *)HUF->x3rgb16.buf;
     break;
   case X3F_IMAGE_THUMB_HUFFMAN:
-    size = ID->columns * ID->rows * 3;
+    size = UINT64(ID->columns) * UINT64(ID->rows) * 3ULL;
     HUF->rgb8.columns = ID->columns;
     HUF->rgb8.rows = ID->rows;
     HUF->rgb8.channels = 3;
     HUF->rgb8.row_stride = ID->columns * 3;
-    HUF->rgb8.buf = malloc(sizeof(uint8_t) * size);
+    HUF->rgb8.buf =
+#ifdef LIBRAW_CALLOC_RAWSTORE
+        x3f_limited_calloc(sizeof(uint8_t) * size, 1);
+#else
+		x3f_limited_malloc(sizeof(uint8_t) * size);
+#endif
     HUF->rgb8.data = (uint8_t *)HUF->rgb8.buf;
     break;
   default:
@@ -1481,7 +1564,7 @@ static void x3f_load_pixmap(x3f_info_t *I, x3f_directory_entry_t *DE)
   x3f_load_image_verbatim(I, DE);
 }
 
-static uint32_t x3f_load_pixmap_size(x3f_info_t *I, x3f_directory_entry_t *DE)
+static int32_t x3f_load_pixmap_size(x3f_info_t *I, x3f_directory_entry_t *DE)
 {
   return x3f_load_image_verbatim_size(I, DE);
 }
@@ -1491,7 +1574,7 @@ static void x3f_load_jpeg(x3f_info_t *I, x3f_directory_entry_t *DE)
   x3f_load_image_verbatim(I, DE);
 }
 
-static uint32_t x3f_load_jpeg_size(x3f_info_t *I, x3f_directory_entry_t *DE)
+static int32_t x3f_load_jpeg_size(x3f_info_t *I, x3f_directory_entry_t *DE)
 {
   return x3f_load_image_verbatim_size(I, DE);
 }
@@ -1536,7 +1619,7 @@ static void x3f_load_image(x3f_info_t *I, x3f_directory_entry_t *DE)
 }
 
 // Used only for thumbnail size estimation
-static uint32_t x3f_load_image_size(x3f_info_t *I, x3f_directory_entry_t *DE)
+static int32_t x3f_load_image_size(x3f_info_t *I, x3f_directory_entry_t *DE)
 {
   x3f_directory_entry_header_t *DEH = &DE->header;
   x3f_image_data_t *ID = &DEH->data_subsection.image_data;
@@ -1561,7 +1644,7 @@ static void x3f_load_camf_decode_type2(x3f_camf_t *CAMF)
   int i;
 
   CAMF->decoded_data_size = CAMF->data_size;
-  CAMF->decoded_data = malloc(CAMF->decoded_data_size);
+  CAMF->decoded_data = x3f_limited_calloc(CAMF->decoded_data_size, 1);
 
   for (i = 0; i < (int)CAMF->data_size; i++)
   {
@@ -1602,13 +1685,13 @@ static void camf_decode_type4(x3f_camf_t *CAMF)
 
   CAMF->decoded_data_size = dst_size;
 
-  CAMF->decoded_data = malloc(CAMF->decoded_data_size);
+  CAMF->decoded_data = x3f_limited_calloc(CAMF->decoded_data_size, 1);
   memset(CAMF->decoded_data, 0, CAMF->decoded_data_size);
 
   dst = (uint8_t *)CAMF->decoded_data;
   dst_end = dst + dst_size;
 
-  set_bit_state(&BS, CAMF->decoding_start);
+  set_bit_state(&BS, CAMF->decoding_start,(uint8_t*)CAMF->data+CAMF->data_size);
 
   row_start_acc[0][0] = seed;
   row_start_acc[0][1] = seed;
@@ -1681,7 +1764,7 @@ static void x3f_load_camf_decode_type4(x3f_camf_t *CAMF)
   for (i = 0, p = (uint8_t *)CAMF->data; *p != 0; i++)
   {
     /* TODO: Is this too expensive ??*/
-    element = (x3f_true_huffman_element_t *)realloc(element,
+    element = (x3f_true_huffman_element_t *)x3f_limited_realloc(element,
                                                     (i + 1) * sizeof(*element));
 
     element[i].code_size = *p++;
@@ -1722,11 +1805,11 @@ static void camf_decode_type5(x3f_camf_t *CAMF)
   int32_t i;
 
   CAMF->decoded_data_size = CAMF->t5.decoded_data_size;
-  CAMF->decoded_data = malloc(CAMF->decoded_data_size);
+  CAMF->decoded_data = x3f_limited_calloc(CAMF->decoded_data_size, 1);
 
   dst = (uint8_t *)CAMF->decoded_data;
 
-  set_bit_state(&BS, CAMF->decoding_start);
+  set_bit_state(&BS, CAMF->decoding_start,(uint8_t*)CAMF->data+CAMF->data_size);
 
   for (i = 0; i < (int)CAMF->decoded_data_size; i++)
   {
@@ -1746,7 +1829,7 @@ static void x3f_load_camf_decode_type5(x3f_camf_t *CAMF)
   for (i = 0, p = (uint8_t *)CAMF->data; *p != 0; i++)
   {
     /* TODO: Is this too expensive ??*/
-    element = (x3f_true_huffman_element_t *)realloc(element,
+    element = (x3f_true_huffman_element_t *)x3f_limited_realloc(element,
                                                     (i + 1) * sizeof(*element));
 
     element[i].code_size = *p++;
@@ -1789,8 +1872,8 @@ static void x3f_setup_camf_property_entry(camf_entry_t *entry)
   uint32_t num = entry->property_num = *(uint32_t *)v;
   uint32_t off = *(uint32_t *)(v + 4);
 
-  entry->property_name = (char **)malloc(num * sizeof(uint8_t *));
-  entry->property_value = (uint8_t **)malloc(num * sizeof(uint8_t *));
+  entry->property_name = (char **)x3f_limited_calloc(num * sizeof(uint8_t *), 1);
+  entry->property_value = (uint8_t **)x3f_limited_calloc(num * sizeof(uint8_t *), 1);
 
   for (i = 0; i < (int)num; i++)
   {
@@ -1844,7 +1927,7 @@ static void get_matrix_copy(camf_entry_t *entry)
                                                        : sizeof(uint32_t)) *
                 elements;
 
-  entry->matrix_decoded = malloc(size);
+  entry->matrix_decoded = x3f_limited_malloc(size);
 
   switch (element_size)
   {
@@ -1906,7 +1989,7 @@ static void get_matrix_copy(camf_entry_t *entry)
 static void x3f_setup_camf_matrix_entry(camf_entry_t *entry)
 {
   int i;
-  int totalsize = 1;
+  INT64 totalsize = 1LL;
 
   uint8_t *e = (uint8_t *)entry->entry;
   uint8_t *v = (uint8_t *)entry->value_address;
@@ -1914,7 +1997,7 @@ static void x3f_setup_camf_matrix_entry(camf_entry_t *entry)
   uint32_t dim = entry->matrix_dim = *(uint32_t *)(v + 4);
   uint32_t off = entry->matrix_data_off = *(uint32_t *)(v + 8);
   camf_dim_entry_t *dentry = entry->matrix_dim_entry =
-      (camf_dim_entry_t *)malloc(dim * sizeof(camf_dim_entry_t));
+      (camf_dim_entry_t *)x3f_limited_malloc(dim * sizeof(camf_dim_entry_t));
 
   for (i = 0; i < (int)dim; i++)
   {
@@ -1927,12 +2010,16 @@ static void x3f_setup_camf_matrix_entry(camf_entry_t *entry)
     {
     }
 
-    totalsize *= size;
+    totalsize *=  INT64(size);
   }
 
   set_matrix_element_info(type, &entry->matrix_element_size,
                           &entry->matrix_decoded_type);
   entry->matrix_data = (void *)(e + off);
+
+  INT64 alloc_size = (entry->matrix_decoded_type == M_FLOAT ? sizeof(double) : sizeof(uint32_t)) * totalsize;
+  if (alloc_size > LIBRAW_X3F_ALLOC_LIMIT_MB * 1024ULL * 1024ULL)
+    throw LIBRAW_EXCEPTION_TOOBIG;
 
   entry->matrix_elements = totalsize;
   entry->matrix_used_space = entry->entry_size - off;
@@ -1965,7 +2052,7 @@ static void x3f_setup_camf_entries(x3f_camf_t *CAMF)
     }
 
     /* TODO: lots of realloc - may be inefficient */
-    entry = (camf_entry_t *)realloc(entry, (i + 1) * sizeof(camf_entry_t));
+    entry = (camf_entry_t *)x3f_limited_realloc(entry, (i + 1) * sizeof(camf_entry_t));
 
     /* Pointer */
     entry[i].entry = p;
@@ -2074,7 +2161,7 @@ static void x3f_load_camf(x3f_info_t *I, x3f_directory_entry_t *DE)
   return X3F_OK;
 }
 
-/* extern */ int64_t x3f_load_data_size(x3f_t *x3f, x3f_directory_entry_t *DE)
+/* extern */ int32_t x3f_load_data_size(x3f_t *x3f, x3f_directory_entry_t *DE)
 {
   x3f_info_t *I = &x3f->info;
 

@@ -1,5 +1,5 @@
 /* -*- C++ -*-
- * Copyright 2019-2021 LibRaw LLC (info@libraw.org)
+ * Copyright 2019-2026 LibRaw LLC (info@libraw.org)
  *
  LibRaw is free software; you can redistribute it and/or modify
  it under the terms of the one of two licenses as you choose:
@@ -13,6 +13,7 @@
  */
 
 #include "../../internal/dcraw_defs.h"
+
 
 void LibRaw::packed_tiled_dng_load_raw()
 {
@@ -71,7 +72,6 @@ void LibRaw::packed_tiled_dng_load_raw()
 }
 
 
-
 void LibRaw::sony_ljpeg_load_raw()
 {
   unsigned trow = 0, tcol = 0, jrow, jcol, row, col;
@@ -113,10 +113,6 @@ void LibRaw::sony_ljpeg_load_raw()
   }
 }
 
-void LibRaw::nikon_he_load_raw_placeholder()
-{
-    throw LIBRAW_EXCEPTION_UNSUPPORTED_FORMAT;
-}
 
 void LibRaw::nikon_coolscan_load_raw()
 {
@@ -140,8 +136,11 @@ void LibRaw::nikon_coolscan_load_raw()
   fseek(ifp, data_offset, SEEK_SET);
   for (int row = 0; row < raw_height; row++)
   {
-      if(tiff_bps <=8)
-        fread(buf, 1, bufsize, ifp);
+	  if (tiff_bps <= 8)
+	  {
+		  if (fread(buf, 1, bufsize, ifp) < bufsize)
+			  derror(); // will raise EOF exception on eof
+	  }
       else
           read_shorts(ubuf,width*clrs);
 
@@ -154,16 +153,16 @@ void LibRaw::nikon_coolscan_load_raw()
         {
           for (int col = 0; col < width; col++)
           {
-            ip[col][0] = ((float)curve[buf[col * 3]]) / 255.0f;
-            ip[col][1] = ((float)curve[buf[col * 3 + 1]]) / 255.0f;
-            ip[col][2] = ((float)curve[buf[col * 3 + 2]]) / 255.0f;
+            ip[col][0] = ushort(((float)curve[buf[col * 3]]) / 255.0f);
+            ip[col][1] = ushort(((float)curve[buf[col * 3 + 1]]) / 255.0f);
+            ip[col][2] = ushort(((float)curve[buf[col * 3 + 2]]) / 255.0f);
             ip[col][3] = 0;
           }
         }
         else
         {
           for (int col = 0; col < width; col++)
-            rp[col] = ((float)curve[buf[col]]) / 255.0f;
+            rp[col] = ushort(((float)curve[buf[col]]) / 255.0f);
         }
     }
     else if (tiff_bps <= 8)
@@ -294,8 +293,8 @@ void LibRaw::rpi_load_raw8()
 	for (row = 0; row < raw_height; row++) {
 		if (fread(data + dwide, 1, dwide, ifp) < dwide) derror();
 		FORC(dwide) data[c] = data[dwide + (c ^ rev)];
-		for (dp = data, col = 0; col < raw_width; dp++, col++)
-			RAW(row, col + c) = dp[c];
+		for (dp = data, col = 0; col < raw_width && col < dwide; dp++, col++)
+			RAW(row, col) = *dp;
 	}
 	free(data);
 	maximum = 0xff;
@@ -391,8 +390,8 @@ void LibRaw::rpi_load_raw16()
 	for (row = 0; row < raw_height; row++) {
 		if (fread(data + dwide, 1, dwide, ifp) < dwide) derror();
 		FORC(dwide) data[c] = data[dwide + (c ^ rev)];
-		for (dp = data, col = 0; col < raw_width; dp += 2, col++)
-			RAW(row, col + c) = (dp[1] << 8) | dp[0];
+		for (dp = data, col = 0; col < raw_width && col < dwide/2; dp += 2, col++)
+			RAW(row, col) = (dp[1] << 8) | dp[0];
 	}
 	free(data);
 	maximum = 0xffff;
